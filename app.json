@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "FitTrack",
+    "slug": "fittrack",
+    "version": "1.0.0",
+    "sdkVersion": "54.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#0d0d0d"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fittrack.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ff5c00"
+      },
+      "package": "com.fittrack.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite"
+    ],
+    "scheme": "fittrack",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
