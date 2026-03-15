@@ -2,11 +2,10 @@ import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme, ThemeProvider } from "../../hooks/useTheme";
 import { RecordsProvider } from "../../hooks/useRecords";
-import { View } from "react-native";
+import { ProfileProvider } from "../../hooks/useProfile";
 
 function TabsContent() {
   const { colors } = useTheme();
-
   return (
     <Tabs
       screenOptions={{
@@ -28,33 +27,18 @@ function TabsContent() {
         },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "DASHBOARD",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="stats-chart" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="log"
-        options={{
-          title: "LOG",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="list" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="charts"
-        options={{
-          title: "CHARTS",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bar-chart" size={size} color={color} />
-          ),
-        }}
-      />
+      <Tabs.Screen name="index" options={{
+        title: "DASHBOARD",
+        tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart" size={size} color={color} />,
+      }} />
+      <Tabs.Screen name="log" options={{
+        title: "LOG",
+        tabBarIcon: ({ color, size }) => <Ionicons name="list" size={size} color={color} />,
+      }} />
+      <Tabs.Screen name="charts" options={{
+        title: "CHARTS",
+        tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart" size={size} color={color} />,
+      }} />
     </Tabs>
   );
 }
@@ -62,9 +46,11 @@ function TabsContent() {
 export default function TabLayout() {
   return (
     <ThemeProvider>
-      <RecordsProvider>
-        <TabsContent />
-      </RecordsProvider>
+      <ProfileProvider>
+        <RecordsProvider>
+          <TabsContent />
+        </RecordsProvider>
+      </ProfileProvider>
     </ThemeProvider>
   );
 }

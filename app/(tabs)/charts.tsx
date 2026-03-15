@@ -1,118 +1,38 @@
 import {
   View, Text, ScrollView, StyleSheet, StatusBar, Dimensions,
 } from "react-native";
-import { useFocusEffect } from "expo-router";
 import { useCallback } from "react";
+import { useFocusEffect } from "expo-router";
 import { useTheme } from "../../hooks/useTheme";
 import { useRecords } from "../../hooks/useRecords";
 import { last30Days, formatNum, avg } from "../../lib/stats";
-import { shadow } from "../../lib/theme";
 import { format, parseISO } from "date-fns";
-import Svg, { Rect, Polyline, Circle, Line, Text as SvgText } from "react-native-svg";
+import Svg, { Polyline, Circle, Line, Text as SvgText, Defs, LinearGradient, Stop, Polygon } from "react-native-svg";
 
 const SCREEN_W = Dimensions.get("window").width;
-const CHART_W = SCREEN_W - 32; // 16px padding each side
+const CHART_W  = SCREEN_W - 32;
 
-// ── Reusable chart header ────────────────────────────────────
-function ChartHeader({ color, title, subtitle }: { color: string; title: string; subtitle?: string }) {
-  const { colors } = useTheme();
-  return (
-    <View style={[styles.chartHeader, { borderBottomColor: colors.border }]}>
-      <View style={[styles.colorDot, { backgroundColor: color, borderColor: colors.border }]} />
-      <View>
-        <Text style={[styles.chartTitle, { color: colors.text2 }]}>{title.toUpperCase()}</Text>
-        {subtitle && <Text style={[styles.chartSubtitle, { color: colors.text2 }]}>{subtitle}</Text>}
-      </View>
-    </View>
-  );
-}
-
-// ── Bar Chart ────────────────────────────────────────────────
-function BarChart({
-  data, color, height = 160,
-}: {
-  data: { label: string; value: number | null }[];
-  color: string;
-  height?: number;
-}) {
-  const { colors } = useTheme();
-  const PAD = { top: 10, right: 12, bottom: 28, left: 38 };
-  const chartW = CHART_W - PAD.left - PAD.right - 8;
-  const chartH = height - PAD.top - PAD.bottom;
-
-  const values = data.map(d => d.value ?? 0);
-  const maxVal = Math.max(...values, 1);
-  const barW = Math.max(3, chartW / data.length - 2);
-  const gap = chartW / data.length;
-  const showEvery = data.length > 20 ? 7 : data.length > 10 ? 4 : 2;
-
-  const gridLines = [0.25, 0.5, 0.75, 1];
-
-  return (
-    <Svg width={CHART_W - 8} height={height}>
-      {/* Grid */}
-      {gridLines.map(pct => {
-        const y = PAD.top + chartH * (1 - pct);
-        return (
-          <Line key={pct} x1={PAD.left} y1={y} x2={CHART_W - PAD.right} y2={y}
-            stroke={colors.surface2} strokeWidth={1} strokeDasharray="3,4" />
-        );
-      })}
-      {/* Y labels */}
-      {gridLines.map(pct => (
-        <SvgText key={pct}
-          x={PAD.left - 4} y={PAD.top + chartH * (1 - pct) + 4}
-          fontSize={8} fill={colors.text2} textAnchor="end" fontFamily="SpaceMono"
-        >
-          {Math.round(maxVal * pct).toLocaleString()}
-        </SvgText>
-      ))}
-      {/* Bars */}
-      {data.map((d, i) => {
-        const barH = d.value != null ? Math.max(2, (d.value / maxVal) * chartH) : 0;
-        const x = PAD.left + i * gap + (gap - barW) / 2;
-        const y = PAD.top + chartH - barH;
-        return (
-          <Rect key={i} x={x} y={y} width={barW} height={barH}
-            fill={d.value != null ? color : "transparent"}
-            stroke={d.value != null ? colors.border : "none"}
-            strokeWidth={1} />
-        );
-      })}
-      {/* X labels */}
-      {data.map((d, i) =>
-        i % showEvery === 0 ? (
-          <SvgText key={i}
-            x={PAD.left + i * gap + gap / 2} y={height - 6}
-            fontSize={8} fill={colors.text2} textAnchor="middle" fontFamily="SpaceMono"
-          >
-            {d.label}
-          </SvgText>
-        ) : null
-      )}
-    </Svg>
-  );
-}
-
-// ── Line Chart ───────────────────────────────────────────────
+// ── Line chart (used for all metrics) ─────────────────────
 function LineChart({
-  data, color, height = 160,
+  data, color, height = 180, unit = "",
 }: {
   data: { label: string; value: number | null }[];
   color: string;
   height?: number;
+  unit?: string;
 }) {
   const { colors } = useTheme();
-  const PAD = { top: 14, right: 12, bottom: 28, left: 42 };
-  const chartW = CHART_W - PAD.left - PAD.right - 8;
-  const chartH = height - PAD.top - PAD.bottom;
+  const PAD = { top: 16, right: 16, bottom: 28, left: 44 };
+  const W = CHART_W - 8;
+  const cW = W - PAD.left - PAD.right;
+  const cH = height - PAD.top - PAD.bottom;
 
   const defined = data.filter(d => d.value != null);
   if (defined.length < 2) {
     return (
       <View style={{ height, alignItems: "center", justifyContent: "center" }}>
         <Text style={{ color: colors.text2, fontFamily: "SpaceMono", fontSize: 11 }}>
-          // not enough data
+          // need at least 2 data points
         </Text>
       </View>
     );
@@ -121,68 +41,87 @@ function LineChart({
   const values = defined.map(d => d.value as number);
   const minVal = Math.min(...values);
   const maxVal = Math.max(...values);
-  const range = maxVal - minVal || 1;
+  const range  = maxVal - minVal || 1;
 
-  const toX = (i: number) => PAD.left + (i / (data.length - 1)) * chartW;
-  const toY = (v: number) => PAD.top + chartH - ((v - minVal) / range) * chartH;
+  const toX = (i: number) => PAD.left + (i / (data.length - 1)) * cW;
+  const toY = (v: number)  => PAD.top  + cH - ((v - minVal) / range) * cH;
 
-  // Build polyline points — skip nulls
+  // Split into continuous segments at nulls
   const segments: string[][] = [];
-  let current: string[] = [];
+  let cur: string[] = [];
   data.forEach((d, i) => {
     if (d.value != null) {
-      current.push(`${toX(i)},${toY(d.value)}`);
+      cur.push(`${toX(i).toFixed(1)},${toY(d.value).toFixed(1)}`);
     } else {
-      if (current.length > 1) segments.push(current);
-      current = [];
+      if (cur.length > 1) segments.push(cur);
+      cur = [];
     }
   });
-  if (current.length > 1) segments.push(current);
+  if (cur.length > 1) segments.push(cur);
+
+  // Area fill points (close polygon below the line)
+  const areaSegments = segments.map(pts => {
+    const first = pts[0];
+    const last  = pts[pts.length - 1];
+    const [fx]  = first.split(",");
+    const [lx]  = last.split(",");
+    const base  = (PAD.top + cH).toFixed(1);
+    return [...pts, `${lx},${base}`, `${fx},${base}`].join(" ");
+  });
 
   const showEvery = data.length > 20 ? 7 : data.length > 10 ? 4 : 2;
+  const gradId    = `grad_${color.replace("#","")}`;
 
   return (
-    <Svg width={CHART_W - 8} height={height}>
-      {/* Grid */}
+    <Svg width={W} height={height}>
+      <Defs>
+        <LinearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={color} stopOpacity="0.25" />
+          <Stop offset="1" stopColor={color} stopOpacity="0" />
+        </LinearGradient>
+      </Defs>
+
+      {/* Grid lines */}
       {[0, 0.5, 1].map(pct => {
-        const y = PAD.top + chartH * (1 - pct);
-        return (
-          <Line key={pct} x1={PAD.left} y1={y} x2={CHART_W - PAD.right} y2={y}
-            stroke={colors.surface2} strokeWidth={1} strokeDasharray="3,4" />
-        );
-      })}
-      {/* Y labels */}
-      {[0, 0.5, 1].map(pct => {
+        const y = PAD.top + cH * (1 - pct);
         const v = minVal + range * pct;
         return (
-          <SvgText key={pct}
-            x={PAD.left - 4} y={PAD.top + chartH * (1 - pct) + 4}
-            fontSize={8} fill={colors.text2} textAnchor="end" fontFamily="SpaceMono"
-          >
-            {v.toFixed(1)}
-          </SvgText>
+          <View key={pct}>
+            <Line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y}
+              stroke={colors.surface2} strokeWidth={1} strokeDasharray="3,4" />
+            <SvgText x={PAD.left - 4} y={y + 4} fontSize={8}
+              fill={colors.text2} textAnchor="end" fontFamily="SpaceMono">
+              {Math.round(v).toLocaleString()}
+            </SvgText>
+          </View>
         );
       })}
-      {/* Lines */}
-      {segments.map((pts, si) => (
-        <Polyline key={si} points={pts.join(" ")}
-          fill="none" stroke={color} strokeWidth={2.5}
-          strokeLinecap="square" strokeLinejoin="miter" />
+
+      {/* Area fills */}
+      {areaSegments.map((pts, i) => (
+        <Polygon key={i} points={pts} fill={`url(#${gradId})`} stroke="none" />
       ))}
-      {/* Dots */}
+
+      {/* Lines */}
+      {segments.map((pts, i) => (
+        <Polyline key={i} points={pts.join(" ")}
+          fill="none" stroke={color} strokeWidth={2.5}
+          strokeLinecap="round" strokeLinejoin="round" />
+      ))}
+
+      {/* Dots at each defined point */}
       {data.map((d, i) =>
         d.value != null ? (
           <Circle key={i} cx={toX(i)} cy={toY(d.value)} r={3}
             fill={color} stroke={colors.border} strokeWidth={1.5} />
         ) : null
       )}
-      {/* X labels */}
+
+      {/* X-axis labels */}
       {data.map((d, i) =>
         i % showEvery === 0 ? (
-          <SvgText key={i}
-            x={toX(i)} y={height - 6}
-            fontSize={8} fill={colors.text2} textAnchor="middle" fontFamily="SpaceMono"
-          >
+          <SvgText key={i} x={toX(i)} y={height - 6}
+            fontSize={8} fill={colors.text2} textAnchor="middle" fontFamily="SpaceMono">
             {d.label}
           </SvgText>
         ) : null
@@ -191,156 +130,129 @@ function LineChart({
   );
 }
 
-// ── Summary strip ────────────────────────────────────────────
-function SummaryRow({ label, value, color }: { label: string; value: string; color: string }) {
+// ── Chart card wrapper ─────────────────────────────────────
+function ChartCard({
+  color, title, subtitle, children, stats,
+}: {
+  color: string; title: string; subtitle: string;
+  children: React.ReactNode;
+  stats?: { label: string; value: string }[];
+}) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.summaryRow, { borderBottomColor: colors.surface2 }]}>
-      <View style={[styles.summaryDot, { backgroundColor: color, borderColor: colors.border }]} />
-      <Text style={[styles.summaryLabel, { color: colors.text2 }]}>{label}</Text>
-      <Text style={[styles.summaryValue, { color: colors.text }]}>{value}</Text>
+    <View style={[cc.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={[cc.header, { borderBottomColor: colors.border }]}>
+        <View style={[cc.dot, { backgroundColor: color, borderColor: colors.border }]} />
+        <View>
+          <Text style={[cc.title, { color: colors.text2 }]}>{title.toUpperCase()}</Text>
+          <Text style={[cc.sub, { color: colors.text2 }]}>{subtitle}</Text>
+        </View>
+      </View>
+      <View style={cc.chartArea}>{children}</View>
+      {stats && stats.length > 0 && (
+        <View style={[cc.statsRow, { borderTopColor: colors.border, backgroundColor: colors.surface2 }]}>
+          {stats.map(({ label, value }, i) => (
+            <View key={label} style={[cc.statItem, i > 0 && { borderLeftColor: colors.border, borderLeftWidth: 2 }]}>
+              <Text style={[cc.statLbl, { color: colors.text2 }]}>{label}</Text>
+              <Text style={[cc.statVal, { color: color }]}>{value}</Text>
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
+const cc = StyleSheet.create({
+  card: { borderWidth: 2, overflow: "hidden", marginBottom: 16 },
+  header: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderBottomWidth: 2 },
+  dot: { width: 12, height: 12, borderWidth: 2 },
+  title: { fontFamily: "SpaceMono", fontSize: 11, fontWeight: "700", letterSpacing: 1.2 },
+  sub: { fontFamily: "SpaceMono", fontSize: 9, marginTop: 1 },
+  chartArea: { paddingVertical: 10, paddingLeft: 4, paddingRight: 10 },
+  statsRow: { flexDirection: "row", borderTopWidth: 2 },
+  statItem: { flex: 1, alignItems: "center", paddingVertical: 10 },
+  statLbl: { fontFamily: "SpaceMono", fontSize: 9, letterSpacing: 1 },
+  statVal: { fontFamily: "BebasNeue", fontSize: 22, lineHeight: 24 },
+});
 
-// ── Main Screen ──────────────────────────────────────────────
+// ── Main screen ────────────────────────────────────────────
 export default function ChartsScreen() {
   const { colors, scheme } = useTheme();
   const { records, loading, refresh } = useRecords();
 
-  // Refresh data whenever this tab comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      refresh();
-    }, [refresh])
-  );
+  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   const recent = last30Days(records);
 
-  const calData = recent.map(r => ({
-    label: format(parseISO(r.date), "d"),
-    value: r.calories,
-  }));
+  const mkData = (key: "calories" | "steps" | "weight") =>
+    recent.map(r => ({
+      label: format(parseISO(r.date), "d"),
+      value: r[key] != null ? Number(r[key]) : null,
+    }));
 
-  const stepsData = recent.map(r => ({
-    label: format(parseISO(r.date), "d"),
-    value: r.steps,
-  }));
+  const calData    = mkData("calories");
+  const stepsData  = mkData("steps");
+  const weightData = mkData("weight");
 
-  const weightData = recent.map(r => ({
-    label: format(parseISO(r.date), "d"),
-    value: r.weight != null ? Number(r.weight) : null,
-  }));
-
-  // Stats for summary strip
-  const avgCals  = avg(recent.map(r => r.calories));
-  const avgSteps = avg(recent.map(r => r.steps));
-  const weights  = recent.filter(r => r.weight != null).map(r => Number(r.weight));
-  const minW = weights.length ? Math.min(...weights) : null;
-  const maxW = weights.length ? Math.max(...weights) : null;
+  const avgCals   = avg(recent.map(r => r.calories));
+  const avgSteps  = avg(recent.map(r => r.steps));
+  const weights   = recent.filter(r => r.weight != null).map(r => Number(r.weight));
+  const minW      = weights.length ? Math.min(...weights) : null;
+  const maxW      = weights.length ? Math.max(...weights) : null;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+    <View style={[s.container, { backgroundColor: colors.bg }]}>
       <StatusBar barStyle={scheme === "dark" ? "light-content" : "dark-content"} />
 
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <View>
-          <Text style={[styles.title, { color: colors.text }]}>CHARTS</Text>
-          <Text style={[styles.subtitle, { color: colors.text2 }]}>LAST 30 DAYS</Text>
-        </View>
-        <View style={[styles.badge, { backgroundColor: colors.accent2, borderColor: colors.border }]}>
-          <Text style={styles.badgeText}>{recent.length} PTS</Text>
+      <View style={[s.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <Text style={[s.title, { color: colors.text }]}>CHARTS</Text>
+        <View style={[s.badge, { backgroundColor: colors.accent2, borderColor: colors.border }]}>
+          <Text style={s.badgeText}>{recent.length} PTS · 30D</Text>
         </View>
       </View>
 
       {loading ? (
-        <View style={styles.loadingBox}>
-          <Text style={[styles.loadingText, { color: colors.text2 }]}>LOADING…</Text>
+        <View style={s.center}>
+          <Text style={[s.bigMsg, { color: colors.text2 }]}>LOADING…</Text>
         </View>
-      ) : recent.length === 0 ? (
-        <View style={styles.emptyBox}>
-          <Text style={[styles.emptyTitle, { color: colors.text2 }]}>NO DATA YET</Text>
-          <Text style={[styles.emptyHint, { color: colors.text2 }]}>// log entries to see charts</Text>
+      ) : recent.length < 2 ? (
+        <View style={s.center}>
+          <Text style={[s.bigMsg, { color: colors.text2 }]}>NOT ENOUGH DATA</Text>
+          <Text style={[s.smallMsg, { color: colors.text2 }]}>// log at least 2 entries</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView contentContainerStyle={s.scroll}>
 
-          {/* ── Calories chart ────────────────────────── */}
-          <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <ChartHeader color={colors.accent} title="Daily Calories" subtitle="kcal / day" />
-            <View style={styles.chartBody}>
-              <BarChart data={calData} color={colors.accent} />
-            </View>
-            <View style={[styles.statStrip, { borderTopColor: colors.border, backgroundColor: colors.surface2 }]}>
-              <View style={styles.statItem}>
-                <Text style={[styles.statLabel, { color: colors.text2 }]}>AVG</Text>
-                <Text style={[styles.statVal, { color: colors.accent }]}>{formatNum(avgCals)} kcal</Text>
-              </View>
-              <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-              <View style={styles.statItem}>
-                <Text style={[styles.statLabel, { color: colors.text2 }]}>DAYS</Text>
-                <Text style={[styles.statVal, { color: colors.accent }]}>{calData.filter(d => d.value).length}</Text>
-              </View>
-            </View>
-          </View>
+          <ChartCard
+            color={colors.accent} title="Calories" subtitle="kcal / day · last 30 days"
+            stats={[
+              { label: "AVG", value: `${formatNum(avgCals)} kcal` },
+              { label: "DAYS LOGGED", value: calData.filter(d => d.value).length.toString() },
+            ]}
+          >
+            <LineChart data={calData} color={colors.accent} />
+          </ChartCard>
 
-          {/* ── Steps chart ───────────────────────────── */}
-          <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <ChartHeader color={colors.accent3} title="Daily Steps" subtitle="steps / day" />
-            <View style={styles.chartBody}>
-              <BarChart data={stepsData} color={colors.accent3} />
-            </View>
-            <View style={[styles.statStrip, { borderTopColor: colors.border, backgroundColor: colors.surface2 }]}>
-              <View style={styles.statItem}>
-                <Text style={[styles.statLabel, { color: colors.text2 }]}>AVG</Text>
-                <Text style={[styles.statVal, { color: colors.accent3 }]}>{formatNum(avgSteps)}</Text>
-              </View>
-              <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-              <View style={styles.statItem}>
-                <Text style={[styles.statLabel, { color: colors.text2 }]}>DAYS</Text>
-                <Text style={[styles.statVal, { color: colors.accent3 }]}>{stepsData.filter(d => d.value).length}</Text>
-              </View>
-            </View>
-          </View>
+          <ChartCard
+            color={colors.accent3} title="Steps" subtitle="steps / day · last 30 days"
+            stats={[
+              { label: "AVG", value: formatNum(avgSteps) },
+              { label: "DAYS LOGGED", value: stepsData.filter(d => d.value).length.toString() },
+            ]}
+          >
+            <LineChart data={stepsData} color={colors.accent3} />
+          </ChartCard>
 
-          {/* ── Weight chart ──────────────────────────── */}
-          <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <ChartHeader color={colors.accent2} title="Weight Trend" subtitle="kg · connect-the-dots" />
-            <View style={styles.chartBody}>
-              <LineChart data={weightData} color={colors.accent2} />
-            </View>
-            {weights.length >= 2 && (
-              <View style={[styles.statStrip, { borderTopColor: colors.border, backgroundColor: colors.surface2 }]}>
-                <View style={styles.statItem}>
-                  <Text style={[styles.statLabel, { color: colors.text2 }]}>MIN</Text>
-                  <Text style={[styles.statVal, { color: colors.accent2 }]}>{minW?.toFixed(1)} kg</Text>
-                </View>
-                <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-                <View style={styles.statItem}>
-                  <Text style={[styles.statLabel, { color: colors.text2 }]}>MAX</Text>
-                  <Text style={[styles.statVal, { color: colors.accent2 }]}>{maxW?.toFixed(1)} kg</Text>
-                </View>
-                <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-                <View style={styles.statItem}>
-                  <Text style={[styles.statLabel, { color: colors.text2 }]}>CHANGE</Text>
-                  <Text style={[styles.statVal, { color: (maxW! - minW!) > 0 ? colors.danger : colors.success }]}>
-                    {(maxW! - minW!).toFixed(1)} kg
-                  </Text>
-                </View>
-              </View>
-            )}
-          </View>
-
-          {/* ── 30-day summary ───────────────────────── */}
-          <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <ChartHeader color={colors.text2} title="30-Day Summary" />
-            <SummaryRow label="Avg Daily Calories" value={`${formatNum(avgCals)} kcal`} color={colors.accent} />
-            <SummaryRow label="Avg Daily Steps" value={formatNum(avgSteps)} color={colors.accent3} />
-            <SummaryRow label="Weight Min" value={minW ? `${minW.toFixed(1)} kg` : "—"} color={colors.accent2} />
-            <SummaryRow label="Weight Max" value={maxW ? `${maxW.toFixed(1)} kg` : "—"} color={colors.accent2} />
-            <SummaryRow label="Days Logged" value={String(recent.length)} color={colors.text2} />
-          </View>
+          <ChartCard
+            color={colors.accent2} title="Weight" subtitle="kg · last 30 days"
+            stats={weights.length >= 2 ? [
+              { label: "MIN", value: `${minW?.toFixed(1)} kg` },
+              { label: "MAX", value: `${maxW?.toFixed(1)} kg` },
+              { label: "CHANGE", value: `${((maxW ?? 0) - (minW ?? 0)).toFixed(1)} kg` },
+            ] : []}
+          >
+            <LineChart data={weightData} color={colors.accent2} />
+          </ChartCard>
 
           <View style={{ height: 40 }} />
         </ScrollView>
@@ -349,71 +261,17 @@ export default function ChartsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 52,
-    paddingBottom: 14,
-    borderBottomWidth: 3,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 16, paddingTop: 52, paddingBottom: 14, borderBottomWidth: 3,
   },
-  title: { fontFamily: "BebasNeue", fontSize: 32, letterSpacing: 2, lineHeight: 34 },
-  subtitle: { fontFamily: "SpaceMono", fontSize: 10, letterSpacing: 1 },
-  badge: {
-    borderWidth: 2,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
+  title: { fontFamily: "BebasNeue", fontSize: 32, letterSpacing: 2 },
+  badge: { borderWidth: 2, paddingHorizontal: 10, paddingVertical: 4 },
   badgeText: { fontFamily: "SpaceMono", fontSize: 10, fontWeight: "700", color: "#000" },
-  loadingBox: { flex: 1, alignItems: "center", justifyContent: "center" },
-  loadingText: { fontFamily: "BebasNeue", fontSize: 28, letterSpacing: 2 },
-  emptyBox: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
-  emptyTitle: { fontFamily: "BebasNeue", fontSize: 32 },
-  emptyHint: { fontFamily: "SpaceMono", fontSize: 11 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
+  bigMsg: { fontFamily: "BebasNeue", fontSize: 28, letterSpacing: 2 },
+  smallMsg: { fontFamily: "SpaceMono", fontSize: 11 },
   scroll: { padding: 16 },
-  chartCard: {
-    borderWidth: 2,
-    marginBottom: 16,
-    overflow: "hidden",
-  },
-  chartHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderBottomWidth: 2,
-  },
-  colorDot: { width: 12, height: 12, borderWidth: 2 },
-  chartTitle: {
-    fontFamily: "SpaceMono",
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1.2,
-  },
-  chartSubtitle: { fontFamily: "SpaceMono", fontSize: 9, marginTop: 1 },
-  chartBody: { padding: 10, paddingLeft: 4 },
-  statStrip: {
-    flexDirection: "row",
-    borderTopWidth: 2,
-    paddingVertical: 10,
-  },
-  statItem: { flex: 1, alignItems: "center" },
-  statLabel: { fontFamily: "SpaceMono", fontSize: 9, letterSpacing: 1 },
-  statVal: { fontFamily: "BebasNeue", fontSize: 20, lineHeight: 22 },
-  statDivider: { width: 2 },
-  summaryRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    gap: 10,
-  },
-  summaryDot: { width: 10, height: 10, borderWidth: 2 },
-  summaryLabel: { fontFamily: "SpaceMono", fontSize: 10, flex: 1 },
-  summaryValue: { fontFamily: "BebasNeue", fontSize: 18 },
 });
