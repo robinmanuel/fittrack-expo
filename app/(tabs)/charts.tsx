@@ -4,6 +4,9 @@ import {
 import { useCallback } from "react";
 import { useFocusEffect } from "expo-router";
 import { useTheme } from "../../hooks/useTheme";
+import { useProfile } from "../../hooks/useProfile";
+import { useLogData } from "../../hooks/useLogData";
+import { calcDailyTarget } from "../../lib/bmr";
 import { useRecords } from "../../hooks/useRecords";
 import { last30Days, formatNum, avg } from "../../lib/stats";
 import { format, parseISO } from "date-fns";
@@ -11,6 +14,65 @@ import Svg, { Polyline, Circle, Line, Text as SvgText, Defs, LinearGradient, Sto
 
 const SCREEN_W = Dimensions.get("window").width;
 const CHART_W  = SCREEN_W - 32;
+
+
+// ── Progress Ring ──────────────────────────────────────────
+function ProgressRing({
+  value, goal, label, sublabel, color, size = 130,
+}: {
+  value: number; goal: number; label: string; sublabel: string;
+  color: string; size?: number;
+}) {
+  const { colors } = useTheme();
+  const pct   = Math.min(value / Math.max(goal, 1), 1);
+  const R     = (size - 20) / 2;
+  const cx    = size / 2;
+  const cy    = size / 2;
+  const circ  = 2 * Math.PI * R;
+  const dash  = pct * circ;
+  const gap   = circ - dash;
+
+  return (
+    <View style={rng.wrap}>
+      <Svg width={size} height={size}>
+        {/* Track */}
+        <Circle cx={cx} cy={cy} r={R}
+          fill="none" stroke={colors.surface2} strokeWidth={10} />
+        {/* Progress arc */}
+        {pct > 0 && (
+          <Circle cx={cx} cy={cy} r={R}
+            fill="none" stroke={color} strokeWidth={10}
+            strokeDasharray={`${dash} ${gap}`}
+            strokeLinecap="square"
+            transform={`rotate(-90 ${cx} ${cy})`}
+          />
+        )}
+        {/* Center value */}
+        <SvgText x={cx} y={cy - 8} textAnchor="middle"
+          fontFamily="BebasNeue" fontSize={28} fill={colors.text}>
+          {value > 0 ? Math.round(value).toLocaleString() : "—"}
+        </SvgText>
+        <SvgText x={cx} y={cy + 10} textAnchor="middle"
+          fontFamily="SpaceMono" fontSize={8} fill={colors.text2}>
+          / {Math.round(goal).toLocaleString()}
+        </SvgText>
+      </Svg>
+      <Text style={[rng.label, { color: colors.text }]}>{label}</Text>
+      <Text style={[rng.sub, { color: colors.text2 }]}>{sublabel}</Text>
+      {/* Pct badge */}
+      <View style={[rng.badge, { backgroundColor: pct >= 1 ? colors.success : color, borderColor: colors.border }]}>
+        <Text style={rng.badgeText}>{Math.round(pct * 100)}%</Text>
+      </View>
+    </View>
+  );
+}
+const rng = StyleSheet.create({
+  wrap: { alignItems: "center", gap: 4, flex: 1 },
+  label: { fontFamily: "BebasNeue", fontSize: 16, letterSpacing: 1, textAlign: "center" },
+  sub: { fontFamily: "SpaceMono", fontSize: 9, textAlign: "center" },
+  badge: { borderWidth: 2, paddingHorizontal: 8, paddingVertical: 2, marginTop: 2 },
+  badgeText: { fontFamily: "SpaceMono", fontSize: 10, fontWeight: "700", color: "#000" },
+});
 
 // ── Line chart (used for all metrics) ─────────────────────
 function LineChart({
@@ -179,8 +241,12 @@ const cc = StyleSheet.create({
 export default function ChartsScreen() {
   const { colors, scheme } = useTheme();
   const { records, loading, refresh } = useRecords();
+  const { profile } = useProfile();
+  const today = format(new Date(), "yyyy-MM-dd");
+  const logData = useLogData(today);
+  const todayRecord = records.find(r => r.date === today) ?? null;
 
-  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
+  useFocusEffect(useCallback(() => { refresh(); logData.refresh(); }, [refresh]));
 
   const recent = last30Days(records);
 
@@ -223,6 +289,31 @@ export default function ChartsScreen() {
       ) : (
         <ScrollView contentContainerStyle={s.scroll}>
 
+          {/* ── Progress Rings ───────────────────────── */}
+          <View style={[ringsCard.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[ringsCard.header, { borderBottomColor: colors.border }]}>
+              <View style={[ringsCard.dot, { backgroundColor: colors.accent2, borderColor: colors.border }]} />
+              <Text style={[ringsCard.title, { color: colors.text2 }]}>TODAY'S PROGRESS</Text>
+              <Text style={[ringsCard.sub, { color: colors.text2 }]}>{today}</Text>
+            </View>
+            <View style={ringsCard.rings}>
+              <ProgressRing
+                value={logData.totalFoodCals}
+                goal={profile ? calcDailyTarget(profile, todayRecord?.steps ?? null) : 2000}
+                label="CALORIES"
+                sublabel={profile ? "vs daily target" : "vs 2000 kcal"}
+                color={colors.accent}
+              />
+              <ProgressRing
+                value={todayRecord?.steps ?? 0}
+                goal={10000}
+                label="STEPS"
+                sublabel="vs 10,000 goal"
+                color={colors.accent3}
+              />
+            </View>
+          </View>
+
           <ChartCard
             color={colors.accent} title="Calories" subtitle="kcal / day · last 30 days"
             stats={[
@@ -260,6 +351,15 @@ export default function ChartsScreen() {
     </View>
   );
 }
+
+const ringsCard = StyleSheet.create({
+  card: { borderWidth: 2, overflow: "hidden", marginBottom: 16 },
+  header: { flexDirection: "row", alignItems: "center", gap: 8, padding: 14, borderBottomWidth: 2 },
+  dot: { width: 10, height: 10, borderWidth: 2 },
+  title: { fontFamily: "SpaceMono", fontSize: 10, fontWeight: "700", letterSpacing: 1.2, flex: 1 },
+  sub: { fontFamily: "SpaceMono", fontSize: 9 },
+  rings: { flexDirection: "row", padding: 20, gap: 16 },
+});
 
 const s = StyleSheet.create({
   container: { flex: 1 },

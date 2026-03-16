@@ -8,12 +8,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
 import { useRecords } from "../../hooks/useRecords";
 import { useProfile } from "../../hooks/useProfile";
+import { useLogData } from "../../hooks/useLogData";
 import {
   calcBMR, calcTDEE, calcDailyTarget,
   calcGoalDate, calcWeeksToGoal, stepsToKcal,
 } from "../../lib/bmr";
 import { shadow, shadowSm } from "../../lib/theme";
 import LogEntryModal from "../../components/LogEntryModal";
+import AddFoodModal from "../../components/AddFoodModal";
+import LogChoiceModal from "../../components/LogChoiceModal";
 import { NewRecord } from "../../lib/types";
 import { format, subDays, eachDayOfInterval } from "date-fns";
 
@@ -271,12 +274,20 @@ export default function DashboardScreen() {
   const { profile } = useProfile();
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
+  const [foodModal, setFoodModal] = useState(false);
+  const [logChoice, setLogChoice] = useState(false);
 
-  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
+  useFocusEffect(useCallback(() => { refresh(); refreshLog(); }, [refresh, refreshLog]));
 
   const today = format(new Date(), "yyyy-MM-dd");
   const todayRecord = records.find(r => r.date === today) ?? null;
   const stepsToday = todayRecord?.steps ?? null;
+  const logData = useLogData(today);
+  const { totalFoodCals, totalExerciseCals, refresh: refreshLog } = logData;
+  const stepKcalToday = stepsToday && profile
+    ? Math.round(stepsToKcal(stepsToday, profile.weight))
+    : 0;
+  const totalBurnedToday = stepKcalToday + totalExerciseCals;
 
   const handleAdd = async (r: NewRecord) => { await add(r); setModalOpen(false); };
 
@@ -309,7 +320,7 @@ export default function DashboardScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[s.logBtn, { backgroundColor: colors.accent, borderColor: colors.border }, shadow]}
-            onPress={() => setModalOpen(true)}
+            onPress={() => setLogChoice(true)}
           >
             <Ionicons name="add" size={16} color="#fff" />
             <Text style={s.logBtnText}>LOG</Text>
@@ -326,8 +337,8 @@ export default function DashboardScreen() {
         <Text style={[s.sectionLbl, { color: colors.text2 }]}>TODAY'S STATS</Text>
         <View style={s.todayGrid}>
           <StatPill
-            label="CALORIES"
-            value={todayRecord?.calories != null ? `${todayRecord.calories.toLocaleString()} kcal` : "—"}
+            label="CALORIES EATEN"
+            value={totalFoodCals > 0 ? `${Math.round(totalFoodCals).toLocaleString()} kcal` : "—"}
             color={colors.accent}
           />
           <StatPill
@@ -337,6 +348,11 @@ export default function DashboardScreen() {
           />
         </View>
         <View style={[s.todayGrid, { marginTop: 10 }]}>
+          <StatPill
+            label="CALS BURNED"
+            value={totalBurnedToday > 0 ? `${totalBurnedToday.toLocaleString()} kcal` : "—"}
+            color={colors.danger}
+          />
           <StatPill
             label="WEIGHT"
             value={todayRecord?.weight != null ? `${Number(todayRecord.weight).toFixed(1)} kg` : "—"}
@@ -395,7 +411,21 @@ export default function DashboardScreen() {
         <View style={{ height: 60 }} />
       </ScrollView>
 
+      {/* Log choice bottom sheet */}
+      <LogChoiceModal
+        visible={logChoice}
+        onFood={() => { setLogChoice(false); setFoodModal(true); }}
+        onSteps={() => { setLogChoice(false); setModalOpen(true); }}
+        onClose={() => setLogChoice(false)}
+      />
       <LogEntryModal visible={modalOpen} onClose={() => setModalOpen(false)} onSave={handleAdd} />
+      <AddFoodModal
+        visible={foodModal}
+        date={today}
+        freqFoods={logData.freqFoods}
+        onSave={async (e) => { await logData.addFood(e); }}
+        onClose={() => setFoodModal(false)}
+      />
     </View>
   );
 }
