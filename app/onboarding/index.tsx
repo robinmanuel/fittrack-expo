@@ -8,15 +8,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
 import { useProfile } from "../../hooks/useProfile";
 import { Sex, GoalDirection, UserProfile } from "../../lib/bmr";
+import { radius, shadow, shadowSm } from "../../lib/theme";
 
-// Step 0 = Welcome, steps 1-3 = data entry
-const TOTAL_DATA_STEPS = 3;
+const TOTAL_STEPS = 3;
 
 export default function OnboardingScreen() {
-  const { colors: C } = useTheme();
+  const { colors } = useTheme();
   const { save } = useProfile();
   const router = useRouter();
-
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [sex, setSex] = useState<Sex>("male");
@@ -28,102 +27,70 @@ export default function OnboardingScreen() {
   const [rate, setRate] = useState(0.5);
 
   const skip = () => router.replace("/(tabs)");
-  const back = () => {
-    if (step === 0) { router.back(); return; }
-    setStep(s => s - 1);
-  };
-
+  const back = () => step === 0 ? router.back() : setStep(s => s - 1);
   const next = () => {
-    if (step === 1 && (!name.trim() || !age)) {
-      Alert.alert("Missing info", "Fill in all fields"); return;
-    }
-    if (step === 2 && (!height || !weight)) {
-      Alert.alert("Missing info", "Enter height and weight"); return;
-    }
-    if (step === 3 && !goalWeight) {
-      Alert.alert("Missing info", "Enter your goal weight"); return;
-    }
-    if (step < TOTAL_DATA_STEPS) { setStep(s => s + 1); return; }
+    if (step === 1 && (!name.trim() || !age)) { Alert.alert("Missing", "Please fill in all fields"); return; }
+    if (step === 2 && (!height || !weight)) { Alert.alert("Missing", "Enter height and weight"); return; }
+    if (step === 3 && !goalWeight) { Alert.alert("Missing", "Enter your goal weight"); return; }
+    if (step < TOTAL_STEPS) { setStep(s => s + 1); return; }
     finish();
   };
 
   const finish = async () => {
-    const profile: UserProfile = {
-      name: name.trim(),
-      sex, age: parseInt(age),
-      height: parseFloat(height),
-      weight: parseFloat(weight),
-      goalWeight: parseFloat(goalWeight),
-      goalDirection: goalDir,
-      weeklyRateKg: rate,
-    };
-    await save(profile);
+    await save({ name: name.trim(), sex, age: parseInt(age), height: parseFloat(height), weight: parseFloat(weight), goalWeight: parseFloat(goalWeight), goalDirection: goalDir, weeklyRateKg: rate });
     router.replace("/(tabs)");
   };
 
-  const inp = [sty.input, { backgroundColor: C.bg2, borderColor: C.border, color: C.text }];
-  const lbl = [sty.label, { color: C.text2 }];
+  const C = colors;
+  const inp = [s.input, { backgroundColor: C.surface, color: C.text }];
+  const lbl = [s.label, { color: C.text2 }];
 
-  const Sel = ({ active, onPress, children }: { active: boolean; onPress: () => void; children: React.ReactNode }) => (
-    <TouchableOpacity
-      style={[sty.selBtn, { borderColor: C.border, backgroundColor: active ? C.accent : C.surface2 }]}
-      onPress={onPress}
-    >
-      <Text style={[sty.selText, { color: active ? "#fff" : C.text }]}>{children}</Text>
+  const Chip = ({ active, onPress, children }: { active: boolean; onPress: () => void; children: React.ReactNode }) => (
+    <TouchableOpacity style={[s.chip, { backgroundColor: active ? C.accent : C.surface }]} onPress={onPress}>
+      <Text style={[s.chipTxt, { color: active ? "#fff" : C.text2 }]}>{children}</Text>
     </TouchableOpacity>
   );
 
   return (
-    <View style={[sty.container, { backgroundColor: C.bg }]}>
+    <View style={[s.container, { backgroundColor: C.bg }]}>
       <StatusBar barStyle="light-content" />
 
-      {/* Header */}
-      <View style={[sty.header, { backgroundColor: C.accent, borderBottomColor: C.border }]}>
-        <TouchableOpacity onPress={back} style={sty.backBtn}>
-          <Ionicons name="arrow-back" size={20} color="#fff" />
+      {/* Nav bar */}
+      <View style={s.nav}>
+        <TouchableOpacity onPress={back} style={[s.navBtn, { backgroundColor: C.surface }]}>
+          <Ionicons name="arrow-back" size={18} color={C.text2} />
         </TouchableOpacity>
-        <Text style={sty.headerTitle}>PROFILE SETUP</Text>
-        <TouchableOpacity onPress={skip} style={sty.skipBtn}>
-          <Text style={sty.skipText}>SKIP</Text>
+        {step > 0 && (
+          <View style={s.dots}>
+            {[1,2,3].map(i => (
+              <View key={i} style={[s.dot, { backgroundColor: i <= step ? C.accent : C.surface2, width: i === step ? 20 : 8 }]} />
+            ))}
+          </View>
+        )}
+        <TouchableOpacity onPress={skip} style={[s.navBtn, { backgroundColor: C.surface }]}>
+          <Text style={[s.skipTxt, { color: C.text2 }]}>Skip</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Progress dots (only for data steps) */}
-      {step > 0 && (
-        <View style={[sty.progressBar, { backgroundColor: C.surface2, borderBottomColor: C.border }]}>
-          {[1, 2, 3].map(i => (
-            <View key={i} style={[sty.progressDot, {
-              backgroundColor: i <= step ? C.accent : C.surface2,
-              borderColor: C.border,
-              width: i === step ? 24 : 10,
-            }]} />
-          ))}
-        </View>
-      )}
+      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
 
-      <ScrollView contentContainerStyle={sty.scroll} keyboardShouldPersistTaps="handled">
-
-        {/* ── STEP 0: Welcome ─────────────────────── */}
         {step === 0 && (
-          <View style={sty.section}>
-            <Text style={[sty.bigTitle, { color: C.text }]}>SETUP{"\n"}YOUR{"\n"}PROFILE</Text>
-            <Text style={[sty.bigSub, { color: C.text2 }]}>
-              // takes 2 minutes{"\n"}// optional — skip anytime
-            </Text>
-
-            <View style={[sty.infoBox, { backgroundColor: C.surface, borderColor: C.border }]}>
+          <View style={s.section}>
+            <Text style={[s.bigTitle, { color: C.text }]}>Set up your{"\n"}profile</Text>
+            <Text style={[s.bigSub, { color: C.text2 }]}>Takes 2 minutes. Optional — skip anytime.</Text>
+            <View style={[s.infoCard, { backgroundColor: C.surface }, shadowSm]}>
               {[
-                { icon: "pulse", color: C.accent3, label: "BMR", desc: "Calories burned at complete rest using Mifflin-St Jeor" },
-                { icon: "flame", color: C.accent, label: "TDEE", desc: "BMR + calories burned from your logged steps" },
-                { icon: "flag", color: C.accent2, label: "GOAL DATE", desc: "Estimated date to reach your target weight" },
+                { icon: "pulse-outline", color: C.accent3, label: "BMR", desc: "Calories burned at rest (Mifflin-St Jeor)" },
+                { icon: "flame-outline", color: C.accent, label: "TDEE", desc: "BMR + calories burned from your logged steps" },
+                { icon: "flag-outline", color: C.accent2, label: "Goal date", desc: "Estimated date to reach your target weight" },
               ].map(({ icon, color, label, desc }) => (
-                <View key={label} style={sty.infoRow}>
-                  <View style={[sty.infoIcon, { backgroundColor: color, borderColor: C.border }]}>
-                    <Ionicons name={icon as any} size={13} color="#000" />
+                <View key={label} style={s.infoRow}>
+                  <View style={[s.infoIcon, { backgroundColor: color + "22" }]}>
+                    <Ionicons name={icon as any} size={16} color={color} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[sty.infoLabel, { color: C.text }]}>{label}</Text>
-                    <Text style={[sty.infoDesc, { color: C.text2 }]}>{desc}</Text>
+                    <Text style={[s.infoLabel, { color: C.text }]}>{label}</Text>
+                    <Text style={[s.infoDesc, { color: C.text2 }]}>{desc}</Text>
                   </View>
                 </View>
               ))}
@@ -131,139 +98,98 @@ export default function OnboardingScreen() {
           </View>
         )}
 
-        {/* ── STEP 1: Name, Sex, Age ───────────────── */}
         {step === 1 && (
-          <View style={sty.section}>
-            <Text style={[sty.stepTitle, { color: C.text }]}>THE BASICS</Text>
-            <Text style={[sty.stepSub, { color: C.text2 }]}>// name, sex, age</Text>
-
-            <View style={sty.field}>
-              <Text style={lbl}>YOUR NAME</Text>
-              <TextInput style={inp} value={name} onChangeText={setName}
-                placeholder="e.g. Robin" placeholderTextColor={C.text2} />
+          <View style={s.section}>
+            <Text style={[s.stepTitle, { color: C.text }]}>The basics</Text>
+            <Text style={[s.stepSub, { color: C.text2 }]}>Name, sex and age</Text>
+            <View style={s.field}>
+              <Text style={lbl}>Your name</Text>
+              <TextInput style={inp} value={name} onChangeText={setName} placeholder="e.g. Robin" placeholderTextColor={C.text2} />
             </View>
-            <View style={sty.field}>
-              <Text style={lbl}>BIOLOGICAL SEX</Text>
-              <View style={sty.row}>
-                <Sel active={sex === "male"} onPress={() => setSex("male")}>♂  MALE</Sel>
-                <Sel active={sex === "female"} onPress={() => setSex("female")}>♀  FEMALE</Sel>
-              </View>
+            <View style={s.field}>
+              <Text style={lbl}>Biological sex</Text>
+              <View style={s.chipRow}><Chip active={sex === "male"} onPress={() => setSex("male")}>Male</Chip><Chip active={sex === "female"} onPress={() => setSex("female")}>Female</Chip></View>
             </View>
-            <View style={sty.field}>
-              <Text style={lbl}>AGE (years)</Text>
-              <TextInput style={inp} value={age} onChangeText={setAge}
-                placeholder="25" placeholderTextColor={C.text2} keyboardType="number-pad" />
+            <View style={s.field}>
+              <Text style={lbl}>Age</Text>
+              <TextInput style={inp} value={age} onChangeText={setAge} placeholder="25" placeholderTextColor={C.text2} keyboardType="number-pad" />
             </View>
           </View>
         )}
 
-        {/* ── STEP 2: Height, Weight ───────────────── */}
         {step === 2 && (
-          <View style={sty.section}>
-            <Text style={[sty.stepTitle, { color: C.text }]}>YOUR BODY</Text>
-            <Text style={[sty.stepSub, { color: C.text2 }]}>// height & current weight</Text>
-
-            <View style={sty.field}>
-              <Text style={lbl}>HEIGHT (cm)</Text>
-              <TextInput style={inp} value={height} onChangeText={setHeight}
-                placeholder="175" placeholderTextColor={C.text2} keyboardType="decimal-pad" />
+          <View style={s.section}>
+            <Text style={[s.stepTitle, { color: C.text }]}>Your body</Text>
+            <Text style={[s.stepSub, { color: C.text2 }]}>Height and current weight</Text>
+            <View style={s.field}>
+              <Text style={lbl}>Height (cm)</Text>
+              <TextInput style={inp} value={height} onChangeText={setHeight} placeholder="175" placeholderTextColor={C.text2} keyboardType="decimal-pad" />
             </View>
-            <View style={sty.field}>
-              <Text style={lbl}>CURRENT WEIGHT (kg)</Text>
-              <TextInput style={inp} value={weight} onChangeText={setWeight}
-                placeholder="75.0" placeholderTextColor={C.text2} keyboardType="decimal-pad" />
+            <View style={s.field}>
+              <Text style={lbl}>Current weight (kg)</Text>
+              <TextInput style={inp} value={weight} onChangeText={setWeight} placeholder="75.0" placeholderTextColor={C.text2} keyboardType="decimal-pad" />
             </View>
           </View>
         )}
 
-        {/* ── STEP 3: Goal ─────────────────────────── */}
         {step === 3 && (
-          <View style={sty.section}>
-            <Text style={[sty.stepTitle, { color: C.text }]}>YOUR GOAL</Text>
-            <Text style={[sty.stepSub, { color: C.text2 }]}>// direction, target, rate</Text>
-
-            <View style={sty.field}>
-              <Text style={lbl}>I WANT TO</Text>
-              <View style={sty.row}>
-                <Sel active={goalDir === "lose"} onPress={() => setGoalDir("lose")}>📉 LOSE</Sel>
-                <Sel active={goalDir === "gain"} onPress={() => setGoalDir("gain")}>📈 GAIN</Sel>
-              </View>
+          <View style={s.section}>
+            <Text style={[s.stepTitle, { color: C.text }]}>Your goal</Text>
+            <Text style={[s.stepSub, { color: C.text2 }]}>Direction, target and pace</Text>
+            <View style={s.field}>
+              <Text style={lbl}>I want to</Text>
+              <View style={s.chipRow}><Chip active={goalDir === "lose"} onPress={() => setGoalDir("lose")}>Lose weight</Chip><Chip active={goalDir === "gain"} onPress={() => setGoalDir("gain")}>Gain weight</Chip></View>
             </View>
-
-            <View style={sty.field}>
-              <Text style={lbl}>GOAL WEIGHT (kg)</Text>
-              <TextInput style={inp} value={goalWeight} onChangeText={setGoalWeight}
-                placeholder="68.0" placeholderTextColor={C.text2} keyboardType="decimal-pad" />
+            <View style={s.field}>
+              <Text style={lbl}>Goal weight (kg)</Text>
+              <TextInput style={inp} value={goalWeight} onChangeText={setGoalWeight} placeholder="68.0" placeholderTextColor={C.text2} keyboardType="decimal-pad" />
             </View>
-
-            <View style={sty.field}>
-              <Text style={lbl}>WEEKLY RATE (kg/week)</Text>
-              <View style={sty.rateGrid}>
-                {[0.25, 0.5, 0.75, 1.0].map(r => (
-                  <Sel key={r} active={rate === r} onPress={() => setRate(r)}>
-                    {r} kg/wk
-                  </Sel>
-                ))}
+            <View style={s.field}>
+              <Text style={lbl}>Weekly pace</Text>
+              <View style={[s.chipRow, { flexWrap: "wrap" }]}>
+                {[0.25, 0.5, 0.75, 1.0].map(r => <Chip key={r} active={rate === r} onPress={() => setRate(r)}>{r} kg/wk</Chip>)}
               </View>
-              <Text style={[sty.rateNote, { color: C.text2 }]}>
-                ⚡ 0.5 kg/week is the recommended safe rate
-              </Text>
+              <Text style={[s.rateNote, { color: C.text2 }]}>0.5 kg/week is the recommended safe rate for most people</Text>
             </View>
           </View>
         )}
 
-        {/* Nav */}
-        <View style={sty.navRow}>
-          <TouchableOpacity
-            style={[sty.navBtn, { borderColor: C.border, backgroundColor: C.accent }]}
-            onPress={next}
-          >
-            <Text style={sty.navBtnText}>
-              {step === 0 ? "START SETUP →" : step === TOTAL_DATA_STEPS ? "SAVE & GO →" : "NEXT →"}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={[s.nextBtn, { backgroundColor: C.accent }, shadow]} onPress={next}>
+          <Text style={s.nextBtnTxt}>
+            {step === 0 ? "Get started" : step === TOTAL_STEPS ? "Save profile" : "Continue"}
+          </Text>
+          <Ionicons name="arrow-forward" size={16} color="#fff" />
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
 }
 
-const sty = StyleSheet.create({
+const s = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: "row", alignItems: "center",
-    paddingTop: 54, paddingBottom: 14, paddingHorizontal: 16,
-    borderBottomWidth: 3,
-  },
-  backBtn: { padding: 4, marginRight: 12 },
-  headerTitle: { fontFamily: "BebasNeue", fontSize: 24, color: "#fff", letterSpacing: 2, flex: 1 },
-  skipBtn: { borderWidth: 2, borderColor: "rgba(255,255,255,0.5)", paddingVertical: 4, paddingHorizontal: 10 },
-  skipText: { fontFamily: "BebasNeue", fontSize: 16, color: "#fff", letterSpacing: 1 },
-  progressBar: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 6, paddingVertical: 10, borderBottomWidth: 2,
-  },
-  progressDot: { height: 8, borderRadius: 4, borderWidth: 2 },
-  scroll: { padding: 20, paddingBottom: 60 },
-  section: { marginBottom: 16 },
-  bigTitle: { fontFamily: "BebasNeue", fontSize: 56, lineHeight: 54, marginBottom: 12 },
-  bigSub: { fontFamily: "SpaceMono", fontSize: 12, lineHeight: 22, marginBottom: 28 },
-  stepTitle: { fontFamily: "BebasNeue", fontSize: 42, lineHeight: 44, marginBottom: 4 },
-  stepSub: { fontFamily: "SpaceMono", fontSize: 12, marginBottom: 28 },
+  nav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 56, paddingBottom: 12 },
+  navBtn: { borderRadius: radius.full, padding: 8 },
+  dots: { flexDirection: "row", gap: 6, alignItems: "center" },
+  dot: { height: 8, borderRadius: radius.full },
+  skipTxt: { fontFamily: "InterMedium", fontSize: 14, paddingHorizontal: 4, paddingVertical: 4 },
+  scroll: { paddingHorizontal: 20, paddingBottom: 60 },
+  section: { marginBottom: 24 },
+  bigTitle: { fontFamily: "LoraBold", fontSize: 40, lineHeight: 46, marginBottom: 10 },
+  bigSub: { fontFamily: "Inter", fontSize: 15, lineHeight: 22, marginBottom: 24 },
+  stepTitle: { fontFamily: "LoraBold", fontSize: 34, lineHeight: 38, marginBottom: 6 },
+  stepSub: { fontFamily: "Inter", fontSize: 14, marginBottom: 28 },
   field: { marginBottom: 20 },
-  label: { fontFamily: "SpaceMono", fontSize: 10, letterSpacing: 1.2, marginBottom: 8 },
-  input: { borderWidth: 2, padding: 13, fontFamily: "SpaceMono", fontSize: 15, fontWeight: "600" },
-  row: { flexDirection: "row", gap: 10 },
-  selBtn: { flex: 1, borderWidth: 2, paddingVertical: 14, alignItems: "center" },
-  selText: { fontFamily: "BebasNeue", fontSize: 18, letterSpacing: 1 },
-  rateGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 10 },
-  rateNote: { fontFamily: "SpaceMono", fontSize: 10, lineHeight: 16 },
-  infoBox: { borderWidth: 2, padding: 16, gap: 16 },
+  label: { fontFamily: "InterMedium", fontSize: 13, marginBottom: 8 },
+  input: { borderRadius: radius.md, padding: 14, fontFamily: "Inter", fontSize: 15 },
+  chipRow: { flexDirection: "row", gap: 10 },
+  chip: { borderRadius: radius.full, paddingVertical: 10, paddingHorizontal: 20 },
+  chipTxt: { fontFamily: "InterMedium", fontSize: 14 },
+  infoCard: { borderRadius: radius.lg, padding: 20, gap: 16 },
   infoRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
-  infoIcon: { width: 28, height: 28, borderWidth: 2, alignItems: "center", justifyContent: "center" },
-  infoLabel: { fontFamily: "BebasNeue", fontSize: 16, letterSpacing: 1 },
-  infoDesc: { fontFamily: "SpaceMono", fontSize: 10, lineHeight: 16, marginTop: 2 },
-  navRow: { marginTop: 8 },
-  navBtn: { borderWidth: 2, paddingVertical: 15, alignItems: "center" },
-  navBtnText: { fontFamily: "BebasNeue", fontSize: 22, color: "#fff", letterSpacing: 1.5 },
+  infoIcon: { width: 36, height: 36, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
+  infoLabel: { fontFamily: "InterMedium", fontSize: 14 },
+  infoDesc: { fontFamily: "Inter", fontSize: 12, lineHeight: 18, marginTop: 2 },
+  rateNote: { fontFamily: "Inter", fontSize: 12, lineHeight: 18, marginTop: 8 },
+  nextBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: radius.full, paddingVertical: 16, marginTop: 4 },
+  nextBtnTxt: { fontFamily: "InterMedium", fontSize: 16, color: "#fff" },
 });

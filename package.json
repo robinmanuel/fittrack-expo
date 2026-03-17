@@ -23,8 +23,10 @@
     "react-native-screens": "~4.4.0",
     "react-native-svg": "15.8.0",
     "@expo/vector-icons": "^14.0.4",
-    "date-fns": "^3.6.0",
-    "@react-native-async-storage/async-storage": "1.23.1"
+    "@expo-google-fonts/lora": "~0.3.0",
+    "@expo-google-fonts/inter": "~0.3.0",
+    "@react-native-async-storage/async-storage": "1.23.1",
+    "date-fns": "^3.6.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",

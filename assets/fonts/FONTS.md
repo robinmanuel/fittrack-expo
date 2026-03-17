@@ -1,25 +1,16 @@
 # Required Fonts
 
-Place the following font files in this directory before running the app:
+## Download with PowerShell (from project root):
 
-## BebasNeue-Regular.ttf
-- Download: https://fonts.google.com/specimen/Bebas+Neue
-- Free for personal and commercial use (SIL Open Font License)
+```powershell
+# Lora (serif display — headlines and numbers)
+Invoke-WebRequest -Uri "https://fonts.gstatic.com/s/lora/v35/0QI6MX1D_JOxE7fSbyxlhWCEHI0.ttf" -OutFile "assets\fonts\Lora-Regular.ttf"
+Invoke-WebRequest -Uri "https://fonts.gstatic.com/s/lora/v35/0QI6MX1D_JOxE7fSbyxluzCEHI0.ttf" -OutFile "assets\fonts\Lora-Bold.ttf"
 
-## SpaceMono-Regular.ttf
-## SpaceMono-Bold.ttf
-- Download: https://fonts.google.com/specimen/Space+Mono
-- Free for personal and commercial use (SIL Open Font License)
-
-## Quick download (macOS/Linux):
-```bash
-# From the project root:
-mkdir -p assets/fonts && cd assets/fonts
-
-# Space Mono
-curl -L "https://fonts.gstatic.com/s/spacemono/v13/i7dPIFZifjKcF5UAWdDRUEZ2RFq7AwU.ttf" -o SpaceMono-Regular.ttf
-curl -L "https://fonts.gstatic.com/s/spacemono/v13/i7dMIFZifjKcF5UAWdDRYER8QHi-EwWMbg.ttf" -o SpaceMono-Bold.ttf
-
-# Bebas Neue
-curl -L "https://fonts.gstatic.com/s/bebasneue/v14/JTUSjIg69CK48gW7PXooxW5rygbi49c.ttf" -o BebasNeue-Regular.ttf
+# Inter (clean sans — labels and body)
+Invoke-WebRequest -Uri "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfAZ9hiJ-Ek-_EeA.woff2" -OutFile "assets\fonts\Inter-Regular.ttf"
+Invoke-WebRequest -Uri "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuI6fAZ9hiJ-Ek-_EeA.woff2" -OutFile "assets\fonts\Inter-Medium.ttf"
+Invoke-WebRequest -Uri "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuFuYAZ9hiJ-Ek-_EeA.woff2" -OutFile "assets\fonts\Inter-Bold.ttf"
 ```
+
+Note: woff2 files work fine with expo-font on native.

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   FoodEntry, NewFoodEntry, FreqFood,
   ExerciseEntry, NewExerciseEntry, FreqExercise,
@@ -26,6 +26,9 @@ export function useLogData(date: string) {
     setFreqExercises(fx);
     setLoading(false);
   }, [date]);
+
+  // Auto-fetch on mount and whenever date changes
+  useEffect(() => { refresh(); }, [refresh]);
 
   const addFood = async (entry: NewFoodEntry) => {
     await db.addFoodEntry(entry);

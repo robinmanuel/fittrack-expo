@@ -3,11 +3,10 @@
     "name": "FitTrack",
     "slug": "fittrack",
     "version": "1.0.0",
-    "sdkVersion": "54.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "backgroundColor": "#0d0d0d"
+      "backgroundColor": "#16181a"
     },
     "assetBundlePatterns": ["**/*"],
     "ios": {
@@ -16,7 +15,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#ff5c00"
+        "backgroundColor": "#8fa68e"
       },
       "package": "com.fittrack.app"
     },

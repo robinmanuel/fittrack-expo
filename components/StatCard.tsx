@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from "react-native";
 import { useTheme } from "../hooks/useTheme";
-import { shadow } from "../lib/theme";
+import { shadow, radius } from "../lib/theme";
 
 interface Props {
   label: string;
@@ -12,70 +12,58 @@ interface Props {
 
 export default function StatCard({ label, value, unit, accentColor, trend }: Props) {
   const { colors } = useTheme();
-  const trendColor = trend == null ? colors.text2 : trend >= 0 ? colors.success : colors.danger;
-  const trendSymbol = trend == null ? "" : trend >= 0 ? "▲" : "▼";
+  const trendUp = trend != null && trend >= 0;
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }, shadow]}>
-      {/* Accent bar */}
-      <View style={[styles.accentBar, { backgroundColor: accentColor }]} />
-      <View style={styles.body}>
-        <Text style={[styles.label, { color: colors.text2 }]}>{label.toUpperCase()}</Text>
-        <View style={styles.valueRow}>
-          <Text style={[styles.value, { color: colors.text }]}>{value}</Text>
-          {unit && <Text style={[styles.unit, { color: colors.text2 }]}>{unit}</Text>}
-        </View>
-        {trend != null && (
-          <View style={[styles.trendBadge, { backgroundColor: trendColor, borderColor: colors.border }]}>
-            <Text style={styles.trendText}>
-              {trendSymbol} {Math.abs(trend).toFixed(1)}%
-            </Text>
-          </View>
-        )}
+    <View style={[s.card, { backgroundColor: colors.surface }, shadow]}>
+      <View style={[s.dot, { backgroundColor: accentColor }]} />
+      <Text style={[s.label, { color: colors.text2 }]}>{label}</Text>
+      <View style={s.row}>
+        <Text style={[s.value, { color: colors.text }]}>
+          {value === "" || value == null ? "—" : value}
+        </Text>
+        {unit && <Text style={[s.unit, { color: colors.text2 }]}> {unit}</Text>}
       </View>
+      {trend != null && (
+        <Text style={[s.trend, { color: trendUp ? colors.accent : colors.danger }]}>
+          {trendUp ? "↑" : "↓"} {Math.abs(trend).toFixed(1)}% vs last week
+        </Text>
+      )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   card: {
     flex: 1,
-    borderWidth: 2,
-    overflow: "hidden",
-  },
-  accentBar: { height: 6 },
-  body: { padding: 14 },
-  label: {
-    fontFamily: "SpaceMono",
-    fontSize: 10,
-    letterSpacing: 1.2,
-    marginBottom: 6,
-  },
-  valueRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
+    borderRadius: radius.md,
+    padding: 16,
     gap: 4,
   },
+  dot: {
+    width: 6, height: 6,
+    borderRadius: radius.full,
+    marginBottom: 6,
+  },
+  label: {
+    fontFamily: "Inter",
+    fontSize: 11,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  row: { flexDirection: "row", alignItems: "baseline", gap: 2 },
   value: {
-    fontFamily: "BebasNeue",
-    fontSize: 36,
-    lineHeight: 40,
+    fontFamily: "LoraBold",
+    fontSize: 30,
+    lineHeight: 34,
   },
   unit: {
-    fontFamily: "SpaceMono",
-    fontSize: 12,
+    fontFamily: "Inter",
+    fontSize: 13,
   },
-  trendBadge: {
-    marginTop: 6,
-    alignSelf: "flex-start",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderWidth: 2,
-  },
-  trendText: {
-    fontFamily: "SpaceMono",
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#000",
+  trend: {
+    fontFamily: "Inter",
+    fontSize: 11,
+    marginTop: 4,
   },
 });

@@ -12,330 +12,258 @@ import { useLogData } from "../../hooks/useLogData";
 import AddFoodModal from "../../components/AddFoodModal";
 import AddExerciseModal from "../../components/AddExerciseModal";
 import LogEntryModal from "../../components/LogEntryModal";
-import { shadow, shadowSm } from "../../lib/theme";
+import { radius, shadow, shadowSm } from "../../lib/theme";
 import { FoodEntry, ExerciseEntry } from "../../lib/types";
+import { stepsToKcal } from "../../lib/bmr";
+import { useProfile } from "../../hooks/useProfile";
 
-// ── Date Picker strip ──────────────────────────────────────
 function DateStrip({ selected, onChange }: { selected: string; onChange: (d: string) => void }) {
   const { colors } = useTheme();
-  const days: { label: string; date: string }[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    days.push({ label: format(d, "EEE d"), date: format(d, "yyyy-MM-dd") });
-  }
+  const today = format(new Date(), "yyyy-MM-dd");
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (6 - i));
+    return {
+      dayName: format(d, "EEE"),
+      dayNum:  format(d, "d"),
+      month:   format(d, "MMM"),
+      date:    format(d, "yyyy-MM-dd"),
+      isToday: format(d, "yyyy-MM-dd") === today,
+    };
+  });
+
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[ds.strip, { borderBottomColor: colors.border, backgroundColor: colors.surface }]}>
-      {days.map(({ label, date }) => {
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={dstrip.scroll}
+    >
+      {days.map(({ dayName, dayNum, month, date, isToday }) => {
         const active = date === selected;
         return (
-          <TouchableOpacity key={date} onPress={() => onChange(date)}
-            style={[ds.day, { borderColor: colors.border, backgroundColor: active ? colors.accent : colors.surface2 }]}>
-            <Text style={[ds.dayText, { color: active ? "#fff" : colors.text2 }]}>{label.toUpperCase()}</Text>
+          <TouchableOpacity
+            key={date}
+            onPress={() => onChange(date)}
+            style={[
+              dstrip.item,
+              { backgroundColor: active ? colors.accent : colors.surface },
+              active && { shadowColor: colors.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+            ]}
+          >
+            {/* Day name */}
+            <Text style={[dstrip.dayName, { color: active ? "rgba(255,255,255,0.75)" : colors.text2 }]}>
+              {dayName.toUpperCase()}
+            </Text>
+            {/* Day number */}
+            <Text style={[dstrip.dayNum, { color: active ? "#fff" : colors.text }]}>
+              {dayNum}
+            </Text>
+            {/* Today dot */}
+            {isToday && (
+              <View style={[dstrip.todayDot, { backgroundColor: active ? "rgba(255,255,255,0.9)" : colors.accent }]} />
+            )}
           </TouchableOpacity>
         );
       })}
     </ScrollView>
   );
 }
-const ds = StyleSheet.create({
-  strip: { borderBottomWidth: 2, paddingVertical: 10, paddingHorizontal: 12 },
-  day: { borderWidth: 2, paddingVertical: 6, paddingHorizontal: 10, marginRight: 6 },
-  dayText: { fontFamily: "SpaceMono", fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
+
+const dstrip = StyleSheet.create({
+  scroll: { paddingHorizontal: 20, paddingVertical: 16, gap: 8, flexDirection: "row" },
+  item: {
+    borderRadius: radius.lg,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    minWidth: 52,
+    gap: 4,
+  },
+  dayName: {
+    fontFamily: "Inter",
+    fontSize: 10,
+    letterSpacing: 0.8,
+  },
+  dayNum: {
+    fontFamily: "LoraBold",
+    fontSize: 22,
+    lineHeight: 24,
+  },
+  todayDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 999,
+    marginTop: 2,
+  },
 });
 
-// ── Section header ─────────────────────────────────────────
-function SectionHeader({
-  label, total, totalLabel, color, onAdd,
-}: { label: string; total: number; totalLabel: string; color: string; onAdd: () => void }) {
-  const { colors } = useTheme();
-  return (
-    <View style={sh.row}>
-      <View style={[sh.dot, { backgroundColor: color, borderColor: colors.border }]} />
-      <Text style={[sh.label, { color: colors.text }]}>{label}</Text>
-      <View style={[sh.badge, { backgroundColor: color, borderColor: colors.border }]}>
-        <Text style={sh.badgeText}>{Math.round(total)} {totalLabel}</Text>
-      </View>
-      <TouchableOpacity style={[sh.addBtn, { backgroundColor: color, borderColor: colors.border }, shadowSm]} onPress={onAdd}>
-        <Ionicons name="add" size={16} color="#000" />
-      </TouchableOpacity>
-    </View>
-  );
-}
-const sh = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
-  dot: { width: 10, height: 10, borderWidth: 2 },
-  label: { fontFamily: "BebasNeue", fontSize: 20, letterSpacing: 1, flex: 1 },
-  badge: { borderWidth: 2, paddingHorizontal: 8, paddingVertical: 3 },
-  badgeText: { fontFamily: "SpaceMono", fontSize: 10, fontWeight: "700", color: "#000" },
-  addBtn: { borderWidth: 2, padding: 5 },
-});
-
-// ── Food row ───────────────────────────────────────────────
 function FoodRow({ entry, onDelete }: { entry: FoodEntry; onDelete: (id: number) => void }) {
   const { colors } = useTheme();
   return (
-    <View style={[fr.row, { backgroundColor: colors.surface, borderColor: colors.border }, shadowSm]}>
-      <View style={[fr.left, { borderRightColor: colors.border }]}>
-        <Text style={[fr.cals, { color: colors.success }]}>{Math.round(entry.total_cals)}</Text>
-        <Text style={[fr.unit, { color: colors.text2 }]}>kcal</Text>
+    <View style={[row.wrap, { backgroundColor: colors.surface }, shadowSm]}>
+      <View style={[row.calBox, { backgroundColor: colors.accent + "18" }]}>
+        <Text style={[row.calVal, { color: colors.accent }]}>{Math.round(entry.total_cals)}</Text>
+        <Text style={[row.calUnit, { color: colors.accent }]}>kcal</Text>
       </View>
-      <View style={fr.mid}>
-        <Text style={[fr.name, { color: colors.text }]} numberOfLines={1}>{entry.name}</Text>
-        <Text style={[fr.detail, { color: colors.text2 }]}>
-          {entry.quantity} × {entry.cals_per_unit} kcal/serving
-        </Text>
+      <View style={row.info}>
+        <Text style={[row.name, { color: colors.text }]} numberOfLines={1}>{entry.name}</Text>
+        <Text style={[row.detail, { color: colors.text2 }]}>{entry.quantity} × {entry.cals_per_unit} kcal</Text>
       </View>
-      <TouchableOpacity style={[fr.delBtn, { borderColor: colors.border, backgroundColor: colors.danger }]}
-        onPress={() => Alert.alert("Delete?", `Remove ${entry.name}?`, [
-          { text: "Cancel", style: "cancel" },
-          { text: "Delete", style: "destructive", onPress: () => onDelete(entry.id) },
-        ])}>
-        <Ionicons name="trash" size={13} color="#fff" />
+      <TouchableOpacity onPress={() => Alert.alert("Remove?", entry.name, [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => onDelete(entry.id) },
+      ])}>
+        <Ionicons name="trash-outline" size={16} color={colors.danger} />
       </TouchableOpacity>
     </View>
   );
 }
-const fr = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", borderWidth: 2, marginBottom: 8, overflow: "hidden" },
-  left: { paddingHorizontal: 12, paddingVertical: 10, alignItems: "center", borderRightWidth: 2, minWidth: 64 },
-  cals: { fontFamily: "BebasNeue", fontSize: 22, lineHeight: 24 },
-  unit: { fontFamily: "SpaceMono", fontSize: 8 },
-  mid: { flex: 1, paddingHorizontal: 12, paddingVertical: 8 },
-  name: { fontFamily: "SpaceMono", fontSize: 12, fontWeight: "700" },
-  detail: { fontFamily: "SpaceMono", fontSize: 10, marginTop: 2 },
-  delBtn: { borderLeftWidth: 2, padding: 12, alignSelf: "stretch", alignItems: "center", justifyContent: "center" },
-});
 
-// ── Exercise row ───────────────────────────────────────────
 function ExerciseRow({ entry, onDelete }: { entry: ExerciseEntry; onDelete: (id: number) => void }) {
   const { colors } = useTheme();
   return (
-    <View style={[er.row, { backgroundColor: colors.surface, borderColor: colors.border }, shadowSm]}>
-      <View style={[er.left, { borderRightColor: colors.border }]}>
-        <Text style={[er.cals, { color: colors.accent3 }]}>{Math.round(entry.cals_burned)}</Text>
-        <Text style={[er.unit, { color: colors.text2 }]}>kcal</Text>
+    <View style={[row.wrap, { backgroundColor: colors.surface }, shadowSm]}>
+      <View style={[row.calBox, { backgroundColor: colors.accent3 + "18" }]}>
+        <Text style={[row.calVal, { color: colors.accent3 }]}>{Math.round(entry.cals_burned)}</Text>
+        <Text style={[row.calUnit, { color: colors.accent3 }]}>kcal</Text>
       </View>
-      <View style={er.mid}>
-        <Text style={[er.name, { color: colors.text }]} numberOfLines={1}>{entry.name}</Text>
-        <Text style={[er.detail, { color: colors.text2 }]}>calories burned</Text>
+      <View style={row.info}>
+        <Text style={[row.name, { color: colors.text }]} numberOfLines={1}>{entry.name}</Text>
+        <Text style={[row.detail, { color: colors.text2 }]}>calories burned</Text>
       </View>
-      <TouchableOpacity style={[er.delBtn, { borderColor: colors.border, backgroundColor: colors.danger }]}
-        onPress={() => Alert.alert("Delete?", `Remove ${entry.name}?`, [
-          { text: "Cancel", style: "cancel" },
-          { text: "Delete", style: "destructive", onPress: () => onDelete(entry.id) },
-        ])}>
-        <Ionicons name="trash" size={13} color="#fff" />
+      <TouchableOpacity onPress={() => Alert.alert("Remove?", entry.name, [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => onDelete(entry.id) },
+      ])}>
+        <Ionicons name="trash-outline" size={16} color={colors.danger} />
       </TouchableOpacity>
     </View>
   );
 }
-const er = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", borderWidth: 2, marginBottom: 8, overflow: "hidden" },
-  left: { paddingHorizontal: 12, paddingVertical: 10, alignItems: "center", borderRightWidth: 2, minWidth: 64 },
-  cals: { fontFamily: "BebasNeue", fontSize: 22, lineHeight: 24 },
-  unit: { fontFamily: "SpaceMono", fontSize: 8 },
-  mid: { flex: 1, paddingHorizontal: 12, paddingVertical: 8 },
-  name: { fontFamily: "SpaceMono", fontSize: 12, fontWeight: "700" },
-  detail: { fontFamily: "SpaceMono", fontSize: 10, marginTop: 2 },
-  delBtn: { borderLeftWidth: 2, padding: 12, alignSelf: "stretch", alignItems: "center", justifyContent: "center" },
+
+const row = StyleSheet.create({
+  wrap: { flexDirection: "row", alignItems: "center", borderRadius: radius.md, padding: 12, gap: 12, marginBottom: 8 },
+  calBox: { borderRadius: radius.sm, paddingHorizontal: 10, paddingVertical: 6, alignItems: "center", minWidth: 56 },
+  calVal: { fontFamily: "LoraBold", fontSize: 18, lineHeight: 20 },
+  calUnit: { fontFamily: "Inter", fontSize: 9 },
+  info: { flex: 1 },
+  name: { fontFamily: "InterMedium", fontSize: 14 },
+  detail: { fontFamily: "Inter", fontSize: 12, marginTop: 2 },
 });
 
-// ── Empty state ────────────────────────────────────────────
-function EmptyState({ label, color }: { label: string; color: string }) {
-  const { colors } = useTheme();
-  return (
-    <View style={[em.box, { borderColor: colors.border, borderLeftColor: color }]}>
-      <Text style={[em.text, { color: colors.text2 }]}>// no {label} logged yet</Text>
-    </View>
-  );
-}
-const em = StyleSheet.create({
-  box: { borderWidth: 2, borderLeftWidth: 4, padding: 14, marginBottom: 8 },
-  text: { fontFamily: "SpaceMono", fontSize: 11 },
-});
-
-// ── Summary bar ────────────────────────────────────────────
-function SummaryBar({
-  foodCals, stepCals, exerciseCals, steps,
-}: { foodCals: number; stepCals: number; exerciseCals: number; steps: number | null }) {
-  const { colors } = useTheme();
-  const totalBurned = stepCals + exerciseCals;
-  const net = foodCals - totalBurned;
-  return (
-    <View style={[sb.bar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <View style={sb.item}>
-        <Text style={[sb.val, { color: colors.success }]}>{Math.round(foodCals)}</Text>
-        <Text style={[sb.lbl, { color: colors.text2 }]}>EATEN</Text>
-      </View>
-      <Text style={[sb.sep, { color: colors.border }]}>−</Text>
-      <View style={sb.item}>
-        <Text style={[sb.val, { color: colors.accent3 }]}>{Math.round(totalBurned)}</Text>
-        <Text style={[sb.lbl, { color: colors.text2 }]}>BURNED</Text>
-      </View>
-      <Text style={[sb.sep, { color: colors.border }]}>=</Text>
-      <View style={sb.item}>
-        <Text style={[sb.val, { color: net > 0 ? colors.accent : colors.success }]}>{Math.round(net)}</Text>
-        <Text style={[sb.lbl, { color: colors.text2 }]}>NET</Text>
-      </View>
-    </View>
-  );
-}
-const sb = StyleSheet.create({
-  bar: { flexDirection: "row", alignItems: "center", borderWidth: 2, marginBottom: 16 },
-  item: { flex: 1, alignItems: "center", paddingVertical: 12 },
-  val: { fontFamily: "BebasNeue", fontSize: 24, lineHeight: 26 },
-  lbl: { fontFamily: "SpaceMono", fontSize: 9, letterSpacing: 1 },
-  sep: { fontFamily: "BebasNeue", fontSize: 20, paddingHorizontal: 4 },
-});
-
-// ── Main screen ────────────────────────────────────────────
 export default function LogScreen() {
   const { colors, scheme } = useTheme();
   const { records, refresh: refreshRecords, add: addRecord } = useRecords();
+  const { profile } = useProfile();
   const today = format(new Date(), "yyyy-MM-dd");
   const [date, setDate] = useState(today);
   const [foodModal, setFoodModal] = useState(false);
   const [exerciseModal, setExerciseModal] = useState(false);
   const [stepsModal, setStepsModal] = useState(false);
+  const { foodEntries, exerciseEntries, freqFoods, freqExercises,
+    refresh, addFood, removeFood, addExercise, removeExercise,
+    totalFoodCals, totalExerciseCals } = useLogData(date);
 
-  const {
-    foodEntries, exerciseEntries,
-    freqFoods, freqExercises,
-    loading, refresh,
-    addFood, removeFood,
-    addExercise, removeExercise,
-    totalFoodCals, totalExerciseCals,
-  } = useLogData(date);
-
-  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
-
-  // When date changes, refresh log data
-  const handleDateChange = (d: string) => {
-    setDate(d);
-  };
   useFocusEffect(useCallback(() => { refresh(); }, [date, refresh]));
 
-  // Get steps for selected date from records
   const dayRecord = records.find(r => r.date === date);
   const stepsToday = dayRecord?.steps ?? null;
-  const stepCals = stepsToday ? Math.round(stepsToday * ((dayRecord ? 70 : 70) / 70) * 0.04) : 0;
+  const stepCals = stepsToday && profile ? Math.round(stepsToKcal(stepsToday, profile.weight)) : (stepsToday ? Math.round(stepsToday * 0.04) : 0);
+  const totalBurned = stepCals + totalExerciseCals;
+  const net = totalFoodCals - totalBurned;
 
   return (
     <View style={[s.container, { backgroundColor: colors.bg }]}>
       <StatusBar barStyle={scheme === "dark" ? "light-content" : "dark-content"} />
 
-      {/* Header */}
-      <View style={[s.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <Text style={[s.title, { color: colors.text }]}>LOG</Text>
-        <TouchableOpacity
-          style={[s.stepsBtn, { backgroundColor: colors.surface2, borderColor: colors.border }, shadowSm]}
-          onPress={() => setStepsModal(true)}
-        >
-          <Ionicons name="footsteps" size={14} color={colors.accent3} />
-          <Text style={[s.stepsBtnText, { color: colors.text }]}>
-            {stepsToday != null ? `${stepsToday.toLocaleString()} STEPS` : "LOG STEPS"}
+      <View style={[s.header, { backgroundColor: colors.bg }]}>
+        <Text style={[s.title, { color: colors.text }]}>Log</Text>
+        <TouchableOpacity style={[s.stepsBtn, { backgroundColor: colors.surface }, shadowSm]} onPress={() => setStepsModal(true)}>
+          <Ionicons name="footsteps-outline" size={15} color={colors.accent3} />
+          <Text style={[s.stepsTxt, { color: colors.text }]}>
+            {stepsToday != null ? `${stepsToday.toLocaleString()} steps` : "Log steps"}
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Date strip */}
-      <DateStrip selected={date} onChange={handleDateChange} />
+      <DateStrip selected={date} onChange={setDate} />
 
       <ScrollView contentContainerStyle={s.scroll}>
-
-        {/* Summary bar */}
-        <SummaryBar
-          foodCals={totalFoodCals}
-          stepCals={stepCals}
-          exerciseCals={totalExerciseCals}
-          steps={stepsToday}
-        />
-
-        {/* ── FOOD section ──────────────────────────── */}
-        <SectionHeader
-          label="FOOD EATEN"
-          total={totalFoodCals}
-          totalLabel="kcal"
-          color={colors.success}
-          onAdd={() => setFoodModal(true)}
-        />
-        {foodEntries.length === 0
-          ? <EmptyState label="food" color={colors.success} />
-          : foodEntries.map(f => (
-              <FoodRow key={f.id} entry={f} onDelete={removeFood} />
-            ))
-        }
-
-        {/* ── EXERCISE section ──────────────────────── */}
-        <View style={{ marginTop: 20 }}>
-          <SectionHeader
-            label="EXERCISE"
-            total={totalExerciseCals + stepCals}
-            totalLabel="kcal burned"
-            color={colors.accent3}
-            onAdd={() => setExerciseModal(true)}
-          />
-          {/* Steps as a pseudo-entry if logged */}
-          {stepsToday != null && stepCals > 0 && (
-            <View style={[fr.row, { backgroundColor: colors.surface, borderColor: colors.border }, shadowSm]}>
-              <View style={[fr.left, { borderRightColor: colors.border }]}>
-                <Text style={[fr.cals, { color: colors.accent3 }]}>{stepCals}</Text>
-                <Text style={[fr.unit, { color: colors.text2 }]}>kcal</Text>
-              </View>
-              <View style={fr.mid}>
-                <Text style={[fr.name, { color: colors.text }]}>Walking / Steps</Text>
-                <Text style={[fr.detail, { color: colors.text2 }]}>{stepsToday.toLocaleString()} steps</Text>
-              </View>
-              <View style={[{ paddingHorizontal: 12, alignItems: "center", justifyContent: "center" }]}>
-                <Ionicons name="footsteps" size={16} color={colors.accent3} />
-              </View>
+        {/* Summary */}
+        <View style={[s.summary, { backgroundColor: colors.surface }, shadowSm]}>
+          {[
+            { label: "Eaten", val: Math.round(totalFoodCals), color: colors.accent },
+            { label: "Burned", val: Math.round(totalBurned), color: colors.accent3 },
+            { label: "Net", val: Math.round(net), color: net > 0 ? colors.accent2 : colors.success },
+          ].map(({ label, val, color }) => (
+            <View key={label} style={s.summaryItem}>
+              <Text style={[s.summaryVal, { color }]}>{val || 0}</Text>
+              <Text style={[s.summaryLbl, { color: colors.text2 }]}>{label}</Text>
             </View>
-          )}
-          {exerciseEntries.length === 0
-            ? <EmptyState label="exercises" color={colors.accent3} />
-            : exerciseEntries.map(e => (
-                <ExerciseRow key={e.id} entry={e} onDelete={removeExercise} />
-              ))
-          }
+          ))}
         </View>
 
+        {/* Food */}
+        <View style={s.sectionHeader}>
+          <Text style={[s.sectionTitle, { color: colors.text }]}>Food eaten</Text>
+          <TouchableOpacity style={[s.addBtn, { backgroundColor: colors.accent }, shadow]} onPress={() => setFoodModal(true)}>
+            <Ionicons name="add" size={16} color="#fff" />
+          </TouchableOpacity>
+        </View>
+        {foodEntries.length === 0
+          ? <Text style={[s.empty, { color: colors.text2 }]}>Nothing logged yet</Text>
+          : foodEntries.map(f => <FoodRow key={f.id} entry={f} onDelete={removeFood} />)
+        }
+
+        {/* Exercise */}
+        <View style={[s.sectionHeader, { marginTop: 20 }]}>
+          <Text style={[s.sectionTitle, { color: colors.text }]}>Exercise</Text>
+          <TouchableOpacity style={[s.addBtn, { backgroundColor: colors.accent3 }, shadow]} onPress={() => setExerciseModal(true)}>
+            <Ionicons name="add" size={16} color="#fff" />
+          </TouchableOpacity>
+        </View>
+        {stepsToday != null && stepCals > 0 && (
+          <View style={[row.wrap, { backgroundColor: colors.surface }, shadowSm]}>
+            <View style={[row.calBox, { backgroundColor: colors.accent3 + "18" }]}>
+              <Text style={[row.calVal, { color: colors.accent3 }]}>{stepCals}</Text>
+              <Text style={[row.calUnit, { color: colors.accent3 }]}>kcal</Text>
+            </View>
+            <View style={row.info}>
+              <Text style={[row.name, { color: colors.text }]}>Walking</Text>
+              <Text style={[row.detail, { color: colors.text2 }]}>{stepsToday.toLocaleString()} steps</Text>
+            </View>
+            <Ionicons name="footsteps-outline" size={16} color={colors.accent3} />
+          </View>
+        )}
+        {exerciseEntries.length === 0
+          ? <Text style={[s.empty, { color: colors.text2 }]}>No exercise logged yet</Text>
+          : exerciseEntries.map(e => <ExerciseRow key={e.id} entry={e} onDelete={removeExercise} />)
+        }
         <View style={{ height: 60 }} />
       </ScrollView>
 
-      {/* Modals */}
-      <AddFoodModal
-        visible={foodModal}
-        date={date}
-        freqFoods={freqFoods}
-        onSave={addFood}
-        onClose={() => setFoodModal(false)}
-      />
-      <AddExerciseModal
-        visible={exerciseModal}
-        date={date}
-        freqExercises={freqExercises}
-        onSave={addExercise}
-        onClose={() => setExerciseModal(false)}
-      />
-      <LogEntryModal
-        visible={stepsModal}
-        onClose={() => { setStepsModal(false); refresh(); }}
+      <AddFoodModal visible={foodModal} date={date} freqFoods={freqFoods} onSave={addFood} onClose={() => setFoodModal(false)} />
+      <AddExerciseModal visible={exerciseModal} date={date} freqExercises={freqExercises} onSave={addExercise} onClose={() => setExerciseModal(false)} />
+      <LogEntryModal visible={stepsModal}
+        onClose={() => { setStepsModal(false); refreshRecords(); refresh(); }}
         onSave={async (r) => { await addRecord(r); await refresh(); }}
-        existing={dayRecord ?? null}
-      />
+        existing={dayRecord ?? null} />
     </View>
   );
 }
 
 const s = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 16, paddingTop: 52, paddingBottom: 14, borderBottomWidth: 3,
-  },
-  title: { fontFamily: "BebasNeue", fontSize: 32, letterSpacing: 2 },
-  stepsBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 2, paddingVertical: 7, paddingHorizontal: 12 },
-  stepsBtnText: { fontFamily: "SpaceMono", fontSize: 10, fontWeight: "700" },
-  scroll: { padding: 16 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 56, paddingBottom: 4 },
+  title: { fontFamily: "LoraBold", fontSize: 28 },
+  stepsBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: radius.full, paddingVertical: 8, paddingHorizontal: 14 },
+  stepsTxt: { fontFamily: "InterMedium", fontSize: 13 },
+  scroll: { paddingHorizontal: 20 },
+  summary: { borderRadius: radius.md, flexDirection: "row", padding: 16, marginBottom: 4 },
+  summaryItem: { flex: 1, alignItems: "center" },
+  summaryVal: { fontFamily: "LoraBold", fontSize: 22 },
+  summaryLbl: { fontFamily: "Inter", fontSize: 11, marginTop: 2 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10, marginTop: 4 },
+  sectionTitle: { fontFamily: "InterMedium", fontSize: 16 },
+  addBtn: { borderRadius: radius.full, padding: 7 },
+  empty: { fontFamily: "Inter", fontSize: 13, fontStyle: "italic", marginBottom: 8 },
 });
