@@ -7,57 +7,63 @@ import {
 
 const DB_NAME = "fittrack.db";
 let _db: SQLite.SQLiteDatabase | null = null;
+let _initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 async function getDb(): Promise<SQLite.SQLiteDatabase> {
   if (_db) return _db;
-  _db = await SQLite.openDatabaseAsync(DB_NAME);
-  await _db.execAsync(`
-    PRAGMA journal_mode = WAL;
+  if (_initPromise) return _initPromise;
+  _initPromise = (async () => {
+    const db = await SQLite.openDatabaseAsync(DB_NAME);
+    await db.execAsync(`
+      PRAGMA journal_mode = WAL;
 
-    CREATE TABLE IF NOT EXISTS records (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      date       TEXT NOT NULL UNIQUE,
-      calories   INTEGER,
-      steps      INTEGER,
-      weight     REAL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
+      CREATE TABLE IF NOT EXISTS records (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        date       TEXT NOT NULL UNIQUE,
+        calories   INTEGER,
+        steps      INTEGER,
+        weight     REAL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
 
-    CREATE TABLE IF NOT EXISTS food_entries (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      date          TEXT NOT NULL,
-      name          TEXT NOT NULL,
-      cals_per_unit REAL NOT NULL,
-      quantity      REAL NOT NULL,
-      total_cals    REAL NOT NULL,
-      created_at    TEXT NOT NULL DEFAULT (datetime('now'))
-    );
+      CREATE TABLE IF NOT EXISTS food_entries (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        date          TEXT NOT NULL,
+        name          TEXT NOT NULL,
+        cals_per_unit REAL NOT NULL,
+        quantity      REAL NOT NULL,
+        total_cals    REAL NOT NULL,
+        created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+      );
 
-    CREATE TABLE IF NOT EXISTS freq_foods (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      name          TEXT NOT NULL UNIQUE COLLATE NOCASE,
-      cals_per_unit REAL NOT NULL,
-      use_count     INTEGER NOT NULL DEFAULT 1,
-      last_used     TEXT NOT NULL DEFAULT (datetime('now'))
-    );
+      CREATE TABLE IF NOT EXISTS freq_foods (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        name          TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        cals_per_unit REAL NOT NULL,
+        use_count     INTEGER NOT NULL DEFAULT 1,
+        last_used     TEXT NOT NULL DEFAULT (datetime('now'))
+      );
 
-    CREATE TABLE IF NOT EXISTS exercise_entries (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      date        TEXT NOT NULL,
-      name        TEXT NOT NULL,
-      cals_burned REAL NOT NULL,
-      created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-    );
+      CREATE TABLE IF NOT EXISTS exercise_entries (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        date        TEXT NOT NULL,
+        name        TEXT NOT NULL,
+        cals_burned REAL NOT NULL,
+        created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+      );
 
-    CREATE TABLE IF NOT EXISTS freq_exercises (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      name        TEXT NOT NULL UNIQUE COLLATE NOCASE,
-      cals_burned REAL NOT NULL,
-      use_count   INTEGER NOT NULL DEFAULT 1,
-      last_used   TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
-  return _db;
+      CREATE TABLE IF NOT EXISTS freq_exercises (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        name        TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        cals_burned REAL NOT NULL,
+        use_count   INTEGER NOT NULL DEFAULT 1,
+        last_used   TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    _db = db;
+    return _db;
+  })();
+  return _initPromise;
 }
 
 // ── Daily records ──────────────────────────────────────────

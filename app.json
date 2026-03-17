@@ -8,7 +8,9 @@
     "splash": {
       "backgroundColor": "#16181a"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fittrack.app"
@@ -25,11 +27,27 @@
     },
     "plugins": [
       "expo-router",
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-font"
     ],
     "scheme": "fittrack",
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "2849ac83-272e-4e27-8411-3505b3bcb5d1"
+      }
+    },
+    "owner": "robinmanuel",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/2849ac83-272e-4e27-8411-3505b3bcb5d1"
     }
   }
 }
