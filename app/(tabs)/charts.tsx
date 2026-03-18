@@ -1,7 +1,7 @@
 import {
   View, Text, ScrollView, StyleSheet, StatusBar, Dimensions,
 } from "react-native";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import { useTheme } from "../../hooks/useTheme";
 import { useRecords } from "../../hooks/useRecords";
@@ -9,12 +9,13 @@ import { useProfile } from "../../hooks/useProfile";
 import { useLogData } from "../../hooks/useLogData";
 import { calcDailyTarget } from "../../lib/bmr";
 import { last30Days, formatNum, avg } from "../../lib/stats";
+import * as db from "../../lib/db";
 import { format, parseISO } from "date-fns";
 import { radius, shadow, shadowSm } from "../../lib/theme";
 import Svg, { Polyline, Circle, Line, Text as SvgText, Defs, LinearGradient, Stop, Polygon } from "react-native-svg";
 
 const SCREEN_W = Dimensions.get("window").width;
-const CHART_W = SCREEN_W - 40; // 20px padding each side
+const CHART_W = SCREEN_W - 40;
 
 // ── Progress Ring ──────────────────────────────────────────
 function ProgressRing({ value, goal, label, color, size = 130 }: {
@@ -194,13 +195,38 @@ export default function ChartsScreen() {
   const logData = useLogData(today);
   const todayRecord = records.find(r => r.date === today) ?? null;
 
-  useFocusEffect(useCallback(() => { refresh(); logData.refresh(); }, [refresh]));
+  const [dailyCals, setDailyCals] = useState<{ date: string; total_cals: number }[]>([]);
+
+  const loadAll = useCallback(async () => {
+    await refresh();
+    const cals = await db.getDailyFoodCalories(30);
+    setDailyCals(cals);
+    logData.refresh();
+  }, [refresh]);
+
+  useFocusEffect(useCallback(() => { loadAll(); }, [loadAll]));
 
   const recent = last30Days(records);
-  const mkData = (key: "calories" | "steps" | "weight") =>
+
+  // Calories from food_entries (not records.calories)
+  const calMap: Record<string, number> = {};
+  dailyCals.forEach(d => { calMap[d.date] = d.total_cals; });
+
+  const calData = recent.map(r => ({
+    label: format(parseISO(r.date), "d"),
+    value: calMap[r.date] != null ? calMap[r.date] : null,
+  }));
+  // Also include days with food entries but no record entry
+  dailyCals.forEach(d => {
+    if (!recent.find(r => r.date === d.date)) {
+      calData.push({ label: format(parseISO(d.date), "d"), value: d.total_cals });
+    }
+  });
+
+  const mkData = (key: "steps" | "weight") =>
     recent.map(r => ({ label: format(parseISO(r.date), "d"), value: r[key] != null ? Number(r[key]) : null }));
 
-  const avgCals  = avg(recent.map(r => r.calories));
+  const avgCals  = avg(Object.values(calMap));
   const avgSteps = avg(recent.map(r => r.steps));
   const weights  = recent.filter(r => r.weight != null).map(r => Number(r.weight));
   const minW = weights.length ? Math.min(...weights) : null;
@@ -248,8 +274,8 @@ export default function ChartsScreen() {
           ) : (
             <>
               <ChartCard color={colors.accent} title="Calories" subtitle="kcal per day · last 30 days"
-                stats={[{ label: "Average", value: `${formatNum(avgCals)} kcal` }, { label: "Days logged", value: mkData("calories").filter(d => d.value).length.toString() }]}>
-                <LineChart data={mkData("calories")} color={colors.accent} />
+                stats={[{ label: "Average", value: `${formatNum(avgCals)} kcal` }, { label: "Days logged", value: calData.filter(d => d.value).length.toString() }]}>
+                <LineChart data={calData} color={colors.accent} />
               </ChartCard>
 
               <ChartCard color={colors.accent3} title="Steps" subtitle="steps per day · last 30 days"

@@ -122,6 +122,18 @@ export async function getRecentRecords(days: number): Promise<FitnessRecord[]> {
 }
 
 // ── Food entries ───────────────────────────────────────────
+export async function getDailyFoodCalories(days: number): Promise<{ date: string; total_cals: number }[]> {
+  const db = await getDb();
+  return db.getAllAsync<{ date: string; total_cals: number }>(
+    `SELECT date, SUM(total_cals) as total_cals
+     FROM food_entries
+     WHERE date >= date('now', ?)
+     GROUP BY date
+     ORDER BY date ASC`,
+    [`-${days} days`]
+  );
+}
+
 export async function getFoodEntriesByDate(date: string): Promise<FoodEntry[]> {
   const db = await getDb();
   return db.getAllAsync<FoodEntry>(
