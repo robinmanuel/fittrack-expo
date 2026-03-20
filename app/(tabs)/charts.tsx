@@ -212,16 +212,14 @@ export default function ChartsScreen() {
   const calMap: Record<string, number> = {};
   dailyCals.forEach(d => { calMap[d.date] = d.total_cals; });
 
-  const calData = recent.map(r => ({
-    label: format(parseISO(r.date), "d"),
-    value: calMap[r.date] != null ? calMap[r.date] : null,
+  // Calories from food_entries — only dates with actual data, ordered by date
+    const calData = dailyCals
+  .filter(d => d.total_cals > 0)
+  .sort((a, b) => a.date.localeCompare(b.date))
+  .map(d => ({
+    label: format(parseISO(d.date), "d"),
+    value: d.total_cals,
   }));
-  // Also include days with food entries but no record entry
-  dailyCals.forEach(d => {
-    if (!recent.find(r => r.date === d.date)) {
-      calData.push({ label: format(parseISO(d.date), "d"), value: d.total_cals });
-    }
-  });
 
   const mkData = (key: "steps" | "weight") =>
     recent.map(r => ({ label: format(parseISO(r.date), "d"), value: r[key] != null ? Number(r[key]) : null }));
