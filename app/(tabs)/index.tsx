@@ -90,14 +90,15 @@ const hm = StyleSheet.create({
 });
 
 // ── BMR section ────────────────────────────────────────────
-function BMRSection({ stepsToday }: { stepsToday: number | null }) {
+function BMRSection({ stepsToday, currentWeight }: { stepsToday: number | null; currentWeight: number | null }) {
   const { colors } = useTheme();
   const { profile } = useProfile();
   if (!profile) return null;
-  const bmr    = Math.round(calcBMR(profile));
-  const tdee   = calcTDEE(profile, stepsToday);
-  const target = calcDailyTarget(profile, stepsToday);
-  const stepKcal = stepsToday ? Math.round(stepsToKcal(stepsToday, profile.weight)) : 0;
+  const effectiveProfile = currentWeight ? { ...profile, weight: currentWeight } : profile;
+  const bmr    = Math.round(calcBMR(effectiveProfile));
+  const tdee   = calcTDEE(effectiveProfile, stepsToday);
+  const target = calcDailyTarget(effectiveProfile, stepsToday);
+  const stepKcal = stepsToday ? Math.round(stepsToKcal(stepsToday, effectiveProfile.weight)) : 0;
   const isLose = profile.goalDirection === "lose";
   const delta = Math.abs(tdee - target);
 
@@ -146,13 +147,15 @@ const bm = StyleSheet.create({
 });
 
 // ── Goal Date ──────────────────────────────────────────────
-function GoalDateCard() {
+function GoalDateCard({ currentWeight }: { currentWeight: number | null }) {
   const { colors } = useTheme();
   const { profile } = useProfile();
   if (!profile) return null;
-  const weeks = calcWeeksToGoal(profile);
-  const goalDate = calcGoalDate(profile);
-  const diff = Math.abs(profile.goalWeight - profile.weight).toFixed(1);
+  // Use latest logged weight if available, otherwise fall back to profile weight
+  const effectiveProfile = currentWeight ? { ...profile, weight: currentWeight } : profile;
+  const weeks = calcWeeksToGoal(effectiveProfile);
+  const goalDate = calcGoalDate(effectiveProfile);
+  const diff = Math.abs(effectiveProfile.goalWeight - effectiveProfile.weight).toFixed(1);
 
   return (
     <View style={[gd.card, { backgroundColor: colors.surface }, shadowSm]}>
@@ -200,7 +203,13 @@ export default function DashboardScreen() {
   const { totalFoodCals, totalExerciseCals, refresh: refreshLog } = logData;
   const todayRecord = records.find(r => r.date === today) ?? null;
   const stepsToday = todayRecord?.steps ?? null;
-  const stepKcalToday = stepsToday && profile ? Math.round(stepsToKcal(stepsToday, profile.weight)) : 0;
+  // Latest weight from any record (most recent first)
+  const currentWeight = records.find(r => r.weight != null)?.weight
+    ? Number(records.find(r => r.weight != null)!.weight)
+    : null;
+  const stepKcalToday = stepsToday && profile
+    ? Math.round(stepsToKcal(stepsToday, currentWeight ?? profile?.weight ?? 70))
+    : 0;
   const totalBurnedToday = stepKcalToday + totalExerciseCals;
 
   useFocusEffect(useCallback(() => { refresh(); refreshLog(); }, [refresh, refreshLog]));
@@ -261,9 +270,9 @@ export default function DashboardScreen() {
         {profile ? (
           <>
             <Text style={[s.section, { color: colors.text2 }]}>BMR & goal</Text>
-            <BMRSection stepsToday={stepsToday} />
+            <BMRSection stepsToday={stepsToday} currentWeight={currentWeight} />
             <Text style={[s.section, { color: colors.text2 }]}>Goal date</Text>
-            <GoalDateCard />
+            <GoalDateCard currentWeight={currentWeight} />
           </>
         ) : (
           <View style={[s.noProfile, { backgroundColor: colors.surface }, shadowSm]}>
